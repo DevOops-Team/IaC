@@ -30,3 +30,6 @@ ansible/vendor/
 ansible/recovery.local.yml
 ansible/runner.local.yml
 ansible/.state/
+
+# Local VS Code settings
+.vscode/
