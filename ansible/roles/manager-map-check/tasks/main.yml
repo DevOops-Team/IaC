@@ -1,0 +1,27 @@
+---
+- name: Require an explicit manager context
+  ansible.builtin.assert:
+    that:
+    - manager_context is defined
+    - manager_context != 'YOUR_ONPREM_CONTEXT'
+    - manager_context | length > 0
+- name: Discover live beta admissionregistration resources without cached discovery
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - get
+    - --raw=/apis/admissionregistration.k8s.io/v1beta1
+  register: manager_admission_api
+  changed_when: false
+- name: Require MAP and MAPBinding in v1beta1
+  ansible.builtin.assert:
+    that:
+    - (manager_admission_api.stdout | from_json).groupVersion == 'admissionregistration.k8s.io/v1beta1'
+    - '''mutatingadmissionpolicies'' in ((manager_admission_api.stdout | from_json).resources | map(attribute=''name'')
+      | list)'
+    - '''mutatingadmissionpolicybindings'' in ((manager_admission_api.stdout | from_json).resources | map(attribute=''name'')
+      | list)'
+    fail_msg: Enable the manager API-server MAP gate and beta API with Kubespray on all three control-plane nodes.
+      Kueue MAP policy/binding installation belongs to the scheduling team.

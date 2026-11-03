@@ -1,0 +1,169 @@
+- name: Require production TLS and configured Cloudflare identifiers
+  ansible.builtin.assert:
+    that:
+    - acme_environment == 'production'
+    - cloudflare_account_id | length > 0
+    - cloudflare_zone_id | length > 0
+    - lookup('env', 'CLOUDFLARE_TUNNEL_API_TOKEN') | length > 0
+    fail_msg: Production origin certificate and Cloudflare Account/Zone IDs/API token are required.
+  no_log: true
+  diff: false
+- name: Confirm frontend certificate is ready
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - -n
+    - '{{ frontend_namespace }}'
+    - wait
+    - --for=condition=Ready
+    - certificate/frontend-tls
+    - --timeout=60s
+  changed_when: false
+- name: Verify frontend has ready endpoint addresses before public exposure
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - -n
+    - '{{ frontend_namespace }}'
+    - get
+    - endpointslices
+    - -l
+    - kubernetes.io/service-name={{ frontend_service_name }}
+    - -o
+    - json
+  register: frontend_endpoints
+  changed_when: false
+- name: Require at least one ready frontend endpoint
+  ansible.builtin.assert:
+    that: (frontend_endpoints.stdout | from_json)['items'] | map(attribute='endpoints') | flatten | selectattr('conditions.ready',
+      'defined') | selectattr('conditions.ready', 'equalto', true) | list | length > 0
+- name: Configure remote tunnel and its credentials without logging secrets
+  no_log: true
+  block:
+  - name: Find named active tunnel
+    ansible.builtin.uri:
+      url: '{{ cf_api }}/accounts/{{ cloudflare_account_id }}/cfd_tunnel?is_deleted=false&name={{ cloudflare_tunnel_name
+        | urlencode }}'
+      headers: '{{ cf_headers }}'
+      return_content: true
+    register: cf_tunnels
+  - name: Validate tunnel query
+    ansible.builtin.assert:
+      that:
+      - cf_tunnels.json.success
+      - cf_tunnels.json.result | length <= 1
+      - cf_tunnels.json.result | length == 0 or cf_tunnels.json.result[0].config_src == 'cloudflare'
+  - name: Create remote-managed tunnel if absent
+    ansible.builtin.uri:
+      url: '{{ cf_api }}/accounts/{{ cloudflare_account_id }}/cfd_tunnel'
+      method: POST
+      headers: '{{ cf_headers }}'
+      body_format: json
+      body:
+        name: '{{ cloudflare_tunnel_name }}'
+        config_src: cloudflare
+      status_code:
+      - 200
+      - 201
+    register: cf_new_tunnel
+    when: cf_tunnels.json.result | length == 0
+  - name: Remember selected tunnel identifier
+    ansible.builtin.set_fact:
+      cf_tunnel_id: '{{ cf_tunnels.json.result[0].id if cf_tunnels.json.result | length > 0 else cf_new_tunnel.json.result.id
+        }}'
+  - name: Read current remote ingress configuration
+    ansible.builtin.uri:
+      url: '{{ cf_api }}/accounts/{{ cloudflare_account_id }}/cfd_tunnel/{{ cf_tunnel_id }}/configurations'
+      headers: '{{ cf_headers }}'
+    register: cf_configuration
+  - name: Retain other hostnames and origin settings
+    ansible.builtin.set_fact:
+      cf_old_config: '{{ (cf_configuration.json.result | default({}, true)).config | default({}, true) }}'
+  - name: Build this hostname route with verified HTTPS origin
+    ansible.builtin.set_fact:
+      cf_desired_route:
+        hostname: '{{ edge_domain }}'
+        service: '{{ edge_origin_service }}'
+        originRequest:
+          originServerName: '{{ edge_domain }}'
+          httpHostHeader: '{{ edge_domain }}'
+  - name: Merge only this hostname and retain a terminal catch-all
+    ansible.builtin.set_fact:
+      cf_merged_routes: "{{ ((cf_old_config.ingress | default([]))\n     | selectattr('hostname', 'defined')\n \
+        \    | rejectattr('hostname', 'equalto', edge_domain) | list)\n   + [cf_desired_route]\n   + (((cf_old_config.ingress\
+        \ | default([]))\n       | rejectattr('hostname', 'defined') | list)\n      or [{'service': 'http_status:404'}])\
+        \ }}"
+  - name: Write remote route if configuration differs
+    ansible.builtin.uri:
+      url: '{{ cf_api }}/accounts/{{ cloudflare_account_id }}/cfd_tunnel/{{ cf_tunnel_id }}/configurations'
+      method: PUT
+      headers: '{{ cf_headers }}'
+      body_format: json
+      body:
+        config: '{{ cf_old_config | combine({''ingress'': cf_merged_routes}) }}'
+    when: cf_old_config.ingress | default([]) != cf_merged_routes
+  - name: Read existing DNS record for the public hostname
+    ansible.builtin.uri:
+      url: '{{ cf_api }}/zones/{{ cloudflare_zone_id }}/dns_records?name={{ edge_domain | urlencode }}'
+      headers: '{{ cf_headers }}'
+    register: cf_dns
+  - name: Refuse to overwrite unrelated DNS records
+    ansible.builtin.assert:
+      that:
+      - cf_dns.json.success
+      - cf_dns.json.result | length <= 1
+      - "cf_dns.json.result | length == 0 or (cf_dns.json.result[0].type == 'CNAME' and\n cf_dns.json.result[0].content\
+        \ == cf_tunnel_id ~ '.cfargotunnel.com')"
+      fail_msg: Existing hostname points elsewhere. Migrate it explicitly before applying this playbook.
+  - name: Create proxied Tunnel CNAME when absent
+    ansible.builtin.uri:
+      url: '{{ cf_api }}/zones/{{ cloudflare_zone_id }}/dns_records'
+      method: POST
+      headers: '{{ cf_headers }}'
+      body_format: json
+      body:
+        type: CNAME
+        name: '{{ edge_domain }}'
+        content: '{{ cf_tunnel_id }}.cfargotunnel.com'
+        proxied: true
+        ttl: 1
+      status_code:
+      - 200
+      - 201
+    when: cf_dns.json.result | length == 0
+  - name: Ensure existing owned CNAME remains proxied
+    ansible.builtin.uri:
+      url: '{{ cf_api }}/zones/{{ cloudflare_zone_id }}/dns_records/{{ cf_dns.json.result[0].id }}'
+      method: PATCH
+      headers: '{{ cf_headers }}'
+      body_format: json
+      body:
+        proxied: true
+    when: cf_dns.json.result | length == 1 and not cf_dns.json.result[0].proxied
+  - name: Retrieve remote tunnel token
+    ansible.builtin.uri:
+      url: '{{ cf_api }}/accounts/{{ cloudflare_account_id }}/cfd_tunnel/{{ cf_tunnel_id }}/token'
+      headers: '{{ cf_headers }}'
+    register: cf_token
+  - name: Validate token response
+    ansible.builtin.assert:
+      that:
+      - cf_token.json.success
+      - cf_token.json.result | length > 0
+  - name: Store token only in Kubernetes Secret via stdin
+    ansible.builtin.command:
+      argv:
+      - kubectl
+      - --context
+      - '{{ manager_context }}'
+      - apply
+      - -f
+      - '-'
+      stdin: '{{ {''apiVersion'': ''v1'', ''kind'': ''Secret'', ''metadata'': {''name'': ''cloudflared-token'',
+        ''namespace'': ''cloudflare-system''}, ''type'': ''Opaque'', ''data'': {''token'': cf_token.json.result
+        | b64encode}} | to_json }}'
+  diff: false

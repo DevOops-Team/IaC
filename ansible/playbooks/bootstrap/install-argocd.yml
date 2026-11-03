@@ -1,0 +1,9 @@
+- name: Install pinned Argo CD HA on the manager
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+  - manager-preflight
+  - argocd-bootstrap
+  vars_files:
+  - ../../versions.yml

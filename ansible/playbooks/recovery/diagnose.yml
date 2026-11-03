@@ -1,0 +1,23 @@
+---
+- name: Prepare local diagnostic output
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+  - name: Require an explicit private output directory
+    ansible.builtin.assert:
+      that:
+      - recovery_output_dir is defined
+      - recovery_output_dir is match('^/')
+  - name: Create private snapshot directory
+    ansible.builtin.file:
+      path: '{{ recovery_output_dir }}'
+      state: directory
+      mode: '0700'
+- name: Probe six Kubernetes VMs without changing services
+  hosts: k8s_cluster
+  become: true
+  gather_facts: false
+  ignore_unreachable: true
+  roles:
+  - recovery-probe

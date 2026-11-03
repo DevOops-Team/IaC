@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Ansible: 구문 검사",
+      "type": "shell",
+      "command": "${workspaceFolder}/ansible/.venv/bin/ansible-playbook",
+      "args": [
+        "playbooks/site.yml",
+        "--syntax-check"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/ansible"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Recovery: 로컬 정책·분기 테스트",
+      "type": "shell",
+      "command": "${workspaceFolder}/ansible/.venv/bin/python",
+      "args": [
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/recovery/tests",
+        "-v"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/ansible"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

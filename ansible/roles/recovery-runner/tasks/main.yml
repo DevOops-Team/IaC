@@ -1,0 +1,76 @@
+---
+- name: Require the confirmed main-server dedicated Ubuntu VM
+  ansible.builtin.assert:
+    that:
+    - recovery_runner_confirmed | bool
+    - ansible_facts.distribution == 'Ubuntu'
+    - physical_host == 'server'
+    - recovery_runner_expected_hostname | length > 0
+    - recovery_runner_expected_hostname != 'REPLACE_WITH_RUNNER_VM_HOSTNAME'
+    - ansible_facts.hostname == recovery_runner_expected_hostname
+    - ansible_facts.virtualization_role == 'guest'
+    - ansible_facts.virtualization_type == 'kvm'
+    - ansible_facts.processor_vcpus | int >= planned_vcpu | int
+    - ansible_facts.memtotal_mb | int >= 1800
+    - inventory_hostname not in groups['k8s_cluster']
+    - recovery_runner_user is match('^[a-z_][a-z0-9_-]*$')
+    - recovery_runner_repo is match('^/')
+    - recovery_runner_config is match('^/')
+    - recovery_runner_state_dir is match('^/')
+    - recovery_runner_interval_seconds | int >= 30
+    - ansible_facts.all_ipv4_addresses | intersect(groups['k8s_cluster'] | map('extract',hostvars,'ip') | list)
+      | length == 0
+- name: Require the prepared runner identity
+  ansible.builtin.getent:
+    database: passwd
+    key: '{{ recovery_runner_user }}'
+- name: Require checkout, Ansible virtualenv and local configuration
+  ansible.builtin.stat:
+    path: '{{ item }}'
+  loop:
+  - '{{ recovery_runner_repo }}/ansible/scripts/recovery/watcher.py'
+  - '{{ recovery_runner_repo }}/ansible/.venv/bin/ansible-playbook'
+  - '{{ recovery_runner_config }}'
+  register: recovery_runner_files
+- name: Reject incomplete runner installation
+  ansible.builtin.assert:
+    that: recovery_runner_files.results | map(attribute='stat.exists') | min
+- name: Read private runner configuration for path consistency
+  ansible.builtin.slurp:
+    src: '{{ recovery_runner_config }}'
+  register: recovery_runner_configuration
+  no_log: true
+- name: Require configured state directory to match the systemd write allowance
+  ansible.builtin.assert:
+    that:
+    - recovery_runner_state_dir | realpath == ((runner_cfg.state_dir if runner_cfg.state_dir is match('^/') else
+      recovery_runner_repo ~ '/ansible/' ~ runner_cfg.state_dir) | realpath)
+  vars:
+    runner_cfg: '{{ recovery_runner_configuration.content | b64decode | from_yaml }}'
+  no_log: true
+- name: Protect local runner configuration
+  ansible.builtin.file:
+    path: '{{ recovery_runner_config }}'
+    owner: '{{ recovery_runner_user }}'
+    mode: '0600'
+- name: Create private runner state directory
+  ansible.builtin.file:
+    path: '{{ recovery_runner_state_dir }}'
+    state: directory
+    owner: '{{ recovery_runner_user }}'
+    mode: '0700'
+- name: Install recovery systemd unit and timer
+  ansible.builtin.template:
+    src: '{{ item }}.j2'
+    dest: /etc/systemd/system/{{ item }}
+    mode: '0644'
+  loop:
+  - gpu-k8s-recovery.service
+  - gpu-k8s-recovery.timer
+  notify: Reload recovery timer
+- name: Enable timer (watcher configuration defaults to observe-only)
+  ansible.builtin.systemd_service:
+    name: gpu-k8s-recovery.timer
+    enabled: true
+    state: started
+    daemon_reload: true

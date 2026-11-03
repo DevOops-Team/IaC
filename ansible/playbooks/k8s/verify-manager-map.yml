@@ -1,0 +1,7 @@
+---
+- name: Verify MAP beta APIs on the on-prem manager only
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+  - manager-map-check

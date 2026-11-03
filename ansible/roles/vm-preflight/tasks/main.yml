@@ -1,0 +1,22 @@
+---
+- name: Verify operating system and memory baseline
+  ansible.builtin.assert:
+    that:
+    - ansible_facts.distribution == 'Ubuntu'
+    - ansible_facts.distribution_version in ['22.04', '24.04']
+    - ansible_facts.memtotal_mb >= (planned_memory_mb | int * 0.85)
+    - ansible_facts.swaptotal_mb == 0
+    - ansible_facts.processor_vcpus >= planned_vcpu | int
+    fail_msg: This inventory targets Ubuntu 22.04/24.04, planned per-VM RAM/vCPU and swap disabled. VM sizing must
+      be applied in Proxmox first.
+- name: Check VIP interface exists on control-plane VMs
+  ansible.builtin.assert:
+    that: kube_vip_interface in ansible_facts.interfaces
+  when: inventory_hostname in groups['kube_control_plane']
+- name: Check cgroup v2 required by this Kubernetes baseline
+  ansible.builtin.stat:
+    path: /sys/fs/cgroup/cgroup.controllers
+  register: cgroup_v2
+- name: Require cgroup v2
+  ansible.builtin.assert:
+    that: cgroup_v2.stat.exists

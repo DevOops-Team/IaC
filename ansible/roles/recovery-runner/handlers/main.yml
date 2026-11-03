@@ -1,0 +1,6 @@
+---
+- name: Reload recovery timer
+  ansible.builtin.systemd_service:
+    name: gpu-k8s-recovery.timer
+    state: restarted
+    daemon_reload: true

@@ -1,0 +1,9 @@
+---
+# runner.local.yml로 복사. 메인 서버 전용 VM에서 실제 hostname 확인 후 입력.
+recovery_runner_confirmed: false
+recovery_runner_expected_hostname: REPLACE_WITH_RUNNER_VM_HOSTNAME
+recovery_runner_user: automation
+recovery_runner_repo: /opt/gpu-iac
+recovery_runner_config: /opt/gpu-iac/ansible/recovery.local.yml
+recovery_runner_state_dir: /opt/gpu-iac/ansible/.state/recovery
+recovery_runner_interval_seconds: 60

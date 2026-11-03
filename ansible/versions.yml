@@ -1,0 +1,5 @@
+kubespray_version: v2.32.0
+kubespray_commit: 9751ea6f63244e433a7a6263d9ecf381e57bb8e9
+kubernetes_version: 1.35.8
+argocd_version: v3.5.7
+argocd_manifest_checksum: sha256:d7b75669da63dc218de0ea67ac00183783cebabd52147c3cf012250faa5ced85

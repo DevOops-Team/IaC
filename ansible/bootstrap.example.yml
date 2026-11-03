@@ -1,0 +1,27 @@
+bootstrap_config_confirmed: false
+manager_context: YOUR_ONPREM_CONTEXT
+gitops_repo_url: https://github.com/YOUR_ORG/gpu-k8s.git
+gitops_root_dir: /absolute/path/gpu-k8s/argocd/bootstrap
+seed_eks_credentials: false
+seed_multikueue_credentials: false
+eks_clusters:
+- name: eks-a
+  context: YOUR_EKS_A_CONTEXT
+  kubeconfig_secret: eks-a-kubeconfig
+  kubeconfig_file: /absolute/path/eks-a.kubeconfig
+- name: eks-b
+  context: YOUR_EKS_B_CONTEXT
+  kubeconfig_secret: eks-b-kubeconfig
+  kubeconfig_file: /absolute/path/eks-b.kubeconfig
+- name: eks-c
+  context: YOUR_EKS_C_CONTEXT
+  kubeconfig_secret: eks-c-kubeconfig
+  kubeconfig_file: /absolute/path/eks-c.kubeconfig
+edge_domain: devoops.site
+frontend_namespace: platform
+frontend_service_name: frontend
+acme_environment: production
+edge_origin_service: https://traefik.ingress-system.svc.cluster.local:443
+cloudflare_account_id: ''
+cloudflare_zone_id: ''
+cloudflare_tunnel_name: devoops-onprem

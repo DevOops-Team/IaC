@@ -1,0 +1,7 @@
+- name: Register the GitOps root Application
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+  - manager-preflight
+  - gitops-root

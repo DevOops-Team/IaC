@@ -1,0 +1,7 @@
+- name: Configure Cloudflare external Tunnel and DNS
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+  - manager-preflight
+  - cloudflare-provider

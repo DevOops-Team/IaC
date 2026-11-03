@@ -1,0 +1,32 @@
+# Local dependencies and credentials
+ansible/.vendor/
+ansible/.venv/
+ansible/.cache/
+**/artifacts/
+**/credentials/
+*.retry
+*.tfstate
+*.tfstate.*
+.terraform/
+.env
+.DS_Store
+
+# Host/account-specific edge configuration and secret variable files
+ansible/edge.local.yml
+ansible/*.vault.yml
+
+# Project deployment inputs and locally supplied certificate/credential material
+ansible/project.local.yml
+ansible/secrets/
+ansible/credentials/
+ansible/.collections/
+
+__pycache__/
+
+ansible/bootstrap.local.yml
+
+ansible/vendor/
+
+ansible/recovery.local.yml
+ansible/runner.local.yml
+ansible/.state/

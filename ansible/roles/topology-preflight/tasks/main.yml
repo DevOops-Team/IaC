@@ -1,0 +1,16 @@
+---
+- name: Require confirmed inventory and three independent control-plane hosts
+  ansible.builtin.assert:
+    that:
+    - hostvars[groups['kube_control_plane'][0]].onprem_inventory_confirmed | default(false) | bool
+    - groups['kube_control_plane'] | length == 3
+    - groups['etcd'] | sort == groups['kube_control_plane'] | sort
+    - groups['kube_node'] | length == 3
+    - groups['kube_control_plane'] | intersect(groups['kube_node']) | length == 0
+    - groups['etcd'] | map('extract', hostvars, 'physical_host') | unique | list | length == 3
+    - groups['kube_node'] | map('extract', hostvars, 'physical_host') | unique | list | length == 3
+    - groups['k8s_cluster'] | length == 6
+    - groups['kube_node'] | map('extract', hostvars, 'physical_host') | sort == groups['etcd'] | map('extract',
+      hostvars, 'physical_host') | sort
+    - groups['k8s_cluster'] | map('extract', hostvars, 'ip') | unique | list | length == 6
+    fail_msg: Review ADR-3 six-VM hosts.yaml, physical placement, API VIP/interface and CIDR overlap; then set onprem_inventory_confirmed=true.

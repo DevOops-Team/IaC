@@ -1,0 +1,4 @@
+cf_api: https://api.cloudflare.com/client/v4
+cf_headers:
+  Authorization: Bearer {{ lookup('env', 'CLOUDFLARE_TUNNEL_API_TOKEN') }}
+  Content-Type: application/json

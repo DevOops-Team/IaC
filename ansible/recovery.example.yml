@@ -1,0 +1,19 @@
+---
+manager_context: YOUR_ONPREM_CONTEXT
+kubeconfig_file: /absolute/path/manager.kubeconfig
+ssh_private_key_file: /absolute/path/ssh-private-key
+inventory_file: inventory/onprem/hosts.yaml
+ansible_playbook: .venv/bin/ansible-playbook
+state_dir: .state/recovery
+auto_repair_enabled: false
+expected_cluster_uid: ''
+allow_control_plane_service_start: false
+confirmations: 3
+cooldown_seconds: 1800
+max_probe_age_seconds: 300
+min_memory_mb: 256
+min_memory_ratio: 0.05
+min_disk_free_percent: 10
+retain_runs: 20
+probe_timeout_seconds: 120
+repair_timeout_seconds: 240

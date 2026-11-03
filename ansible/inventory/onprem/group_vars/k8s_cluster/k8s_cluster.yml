@@ -1,0 +1,31 @@
+---
+# Kubespray v2.32.0 supported checksum entry; pin a patch, never floating 1.35.
+kube_version: "1.35.8"
+container_manager: containerd
+# Preserve the existing repository's Calico choice; Cilium migration is separate.
+kube_network_plugin: calico
+kube_proxy_mode: ipvs
+kube_proxy_strict_arp: true
+# Confirm no overlap with LAN, EKS VPCs, VPN routes and Service CIDRs.
+kube_service_addresses: 10.233.0.0/18
+kube_pods_subnet: 10.233.64.0/18
+cluster_name: cluster.local
+kubeconfig_localhost: true
+kubectl_localhost: false
+kubelet_fail_swap_on: true
+kube_reserved: true
+kube_memory_reserved: 512Mi
+kube_cpu_reserved: 300m
+system_reserved: true
+system_memory_reserved: 512Mi
+system_cpu_reserved: 300m
+
+# Internal Service DNS used by cloudflared -> Traefik.
+dns_mode: coredns
+
+# Manager cluster only: MAP beta API for the scheduling team's external dispatcher.
+# API-server-specific gate avoids propagating MAP to kubelet/proxy/scheduler.
+kube_apiserver_feature_gates:
+  - "MutatingAdmissionPolicy=true"
+kube_api_runtime_config:
+  - "admissionregistration.k8s.io/v1beta1=true"

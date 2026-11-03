@@ -1,0 +1,17 @@
+---
+- name: Collect only read-only node observations
+  ansible.builtin.script:
+    cmd: probe_node.py
+    executable: /usr/bin/python3
+  register: recovery_probe
+  changed_when: false
+  ignore_errors: true
+  ignore_unreachable: true
+- name: Save this run snapshot on the execution machine
+  ansible.builtin.copy:
+    content: '{{ {"name":inventory_hostname,"reachable":(recovery_probe.rc | default(1) == 0),"observation":(recovery_probe.stdout
+      | from_json if recovery_probe.rc | default(1) == 0 else {})} | to_nice_json }}'
+    dest: '{{ recovery_output_dir }}/{{ inventory_hostname }}.json'
+    mode: '0600'
+  delegate_to: localhost
+  become: false

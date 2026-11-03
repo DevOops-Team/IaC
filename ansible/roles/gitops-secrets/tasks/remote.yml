@@ -1,0 +1,34 @@
+- name: Validate self-contained non-executable worker kubeconfig
+  ansible.builtin.assert:
+    that:
+    - worker_kubeconfig.kind == 'Config'
+    - worker_kubeconfig.users | length == 1
+    - worker_kubeconfig.clusters | length == 1
+    - '''exec'' not in worker_kubeconfig.users[0].user'
+    - '''auth-provider'' not in worker_kubeconfig.users[0].user'
+    - '''tokenFile'' not in worker_kubeconfig.users[0].user'
+    - '''client-key'' not in worker_kubeconfig.users[0].user'
+    - '''client-certificate'' not in worker_kubeconfig.users[0].user'
+    - worker_kubeconfig.clusters[0].cluster.server is match('^https://')
+    - worker_kubeconfig.clusters[0].cluster['certificate-authority-data'] | length > 0
+    - not worker_kubeconfig.clusters[0].cluster['insecure-skip-tls-verify'] | default(false) | bool
+    - worker_kubeconfig.users[0].user.token | default('') | length > 0 or (worker_kubeconfig.users[0].user['client-certificate-data']
+      | default('') | length > 0 and worker_kubeconfig.users[0].user['client-key-data'] | default('') | length >
+      0)
+  vars:
+    worker_kubeconfig: '{{ lookup(''file'',eks_cluster.kubeconfig_file) | from_yaml }}'
+  no_log: true
+  diff: false
+- name: Store worker kubeconfig in manager Secret without plaintext cache
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - apply
+    - -f
+    - '-'
+    stdin: '{{ {"apiVersion":"v1","kind":"Secret","metadata":{"name":eks_cluster.kubeconfig_secret,"namespace":"kueue-system"},"type":"Opaque","stringData":{"kubeconfig":lookup("file",eks_cluster.kubeconfig_file)}}
+      | to_json }}'
+  no_log: true
+  diff: false

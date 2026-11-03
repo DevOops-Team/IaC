@@ -1,0 +1,26 @@
+- name: Require configured GitOps URL and explicit root manifests path
+  ansible.builtin.assert:
+    that:
+    - gitops_repo_url is match('^(https://|ssh://|git@)')
+    - '''YOUR_ORG'' not in gitops_repo_url'
+    - gitops_root_dir | length > 0
+- name: Read bootstrap project and root Application
+  ansible.builtin.set_fact:
+    gitops_project_manifest: '{{ lookup("file", gitops_root_dir ~ "/project.yaml") | from_yaml }}'
+    gitops_root_manifest: '{{ lookup("file", gitops_root_dir ~ "/root.yaml") | from_yaml }}'
+- name: Require local root manifests to match the intended GitHub URL
+  ansible.builtin.assert:
+    that:
+    - gitops_root_manifest.spec.source.repoURL == gitops_repo_url
+    - gitops_repo_url in gitops_project_manifest.spec.sourceRepos
+- name: Register GitOps project and manual-sync root only
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - apply
+    - -k
+    - '{{ gitops_root_dir }}'
+  register: root_apply
+  changed_when: '''created'' in root_apply.stdout or ''configured'' in root_apply.stdout'

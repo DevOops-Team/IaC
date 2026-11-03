@@ -1,0 +1,25 @@
+- name: Require confirmed bootstrap and manager context
+  ansible.builtin.assert:
+    that:
+    - bootstrap_config_confirmed | default(false) | bool
+    - manager_context is defined
+    - manager_context != 'YOUR_ONPREM_CONTEXT'
+- name: Read expected on-prem nodes
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - get
+    - nodes
+    - -l
+    - platform-cluster=onprem-manager
+    - -o
+    - json
+  register: manager_nodes
+  changed_when: false
+- name: Require the six-VM manager cluster
+  ansible.builtin.assert:
+    that:
+    - (manager_nodes.stdout | from_json)['items'] | map(attribute='metadata.name') | sort == groups['k8s_cluster']
+      | sort

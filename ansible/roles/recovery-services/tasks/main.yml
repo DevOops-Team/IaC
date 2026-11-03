@@ -1,0 +1,147 @@
+---
+- name: Require a single approved target and explicit repair enablement
+  ansible.builtin.assert:
+    that:
+    - recovery_repair_enabled | default(false) | bool
+    - onprem_inventory_confirmed | bool
+    - inventory_hostname == recovery_target
+    - inventory_hostname in groups['k8s_cluster']
+    - recovery_services | length > 0
+    - recovery_services | length <= 2
+    - recovery_services | difference(['containerd','kubelet']) | length == 0
+    - inventory_hostname not in groups['kube_control_plane'] or recovery_allow_control_plane | default(false) |
+      bool
+    - recovery_expected_cluster_uid | default('') | length > 0
+- name: Re-probe the target immediately before changing anything
+  ansible.builtin.script:
+    cmd: '{{ role_path }}/../recovery-probe/files/probe_node.py'
+    executable: /usr/bin/python3
+  register: repair_probe
+  changed_when: false
+- name: Read current observations
+  ansible.builtin.set_fact:
+    repair_observation: '{{ repair_probe.stdout | from_json }}'
+- name: Recheck available memory and storage
+  ansible.builtin.assert:
+    that:
+    - repair_observation.memory_available_mb >= recovery_min_memory_mb | default(256) | int
+    - repair_observation.memory_available_mb / repair_observation.memory_total_mb >= recovery_min_memory_ratio |
+      default(0.05) | float
+    - repair_observation.disks | length > 0
+    - repair_observation.disks | map(attribute="free_percent") | min >= recovery_min_disk_free_percent | default(10)
+      | float
+- name: Require installed enabled service units; never unmask or enable a deliberately stopped unit
+  ansible.builtin.assert:
+    that:
+    - repair_observation.units[item].LoadState == 'loaded'
+    - repair_observation.units[item].UnitFileState == 'enabled'
+    - repair_observation.units[item].ActiveState in ['active','inactive','failed']
+  loop: '{{ recovery_services }}'
+- name: Verify current API health before service changes
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - --kubeconfig
+    - '{{ recovery_kubeconfig_file }}'
+    - --cache-dir
+    - '{{ recovery_kube_cache }}'
+    - --request-timeout=8s
+    - get
+    - --raw=/readyz
+  delegate_to: localhost
+  become: false
+  changed_when: false
+- name: Re-read cluster identity
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - --kubeconfig
+    - '{{ recovery_kubeconfig_file }}'
+    - --cache-dir
+    - '{{ recovery_kube_cache }}'
+    - --request-timeout=8s
+    - get
+    - namespace
+    - kube-system
+    - -o
+    - jsonpath={.metadata.uid}
+  register: repair_cluster_uid
+  delegate_to: localhost
+  become: false
+  changed_when: false
+- name: Re-read current node conditions
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - --kubeconfig
+    - '{{ recovery_kubeconfig_file }}'
+    - --cache-dir
+    - '{{ recovery_kube_cache }}'
+    - --request-timeout=8s
+    - get
+    - nodes
+    - -o
+    - json
+  register: repair_nodes
+  delegate_to: localhost
+  become: false
+  changed_when: false
+- name: Require matching cluster, expected topology and the other five Ready nodes
+  ansible.builtin.assert:
+    that:
+    - repair_cluster_uid.stdout == recovery_expected_cluster_uid
+    - (repair_nodes.stdout | from_json)['items'] | map(attribute='metadata.name') | sort == groups['k8s_cluster']
+      | sort
+    - (repair_nodes.stdout | from_json)['items'] | rejectattr('metadata.name','equalto',inventory_hostname) | map(attribute='status.conditions')
+      | flatten | selectattr('type','equalto','Ready') | selectattr('status','equalto','True') | list | length ==
+      5
+- name: Recheck target maintenance and pressure flags
+  ansible.builtin.assert:
+    that:
+    - not target_node.spec.unschedulable | default(false) | bool
+    - target_node.metadata.deletionTimestamp is not defined
+    - target_node.status.conditions | selectattr('status','equalto','True') | selectattr('type','in',['DiskPressure','MemoryPressure','PIDPressure'])
+      | list | length == 0
+  vars:
+    target_node: '{{ (repair_nodes.stdout | from_json)[''items''] | selectattr(''metadata.name'',''equalto'',inventory_hostname)
+      | first }}'
+- name: Start only the selected stopped services in dependency order
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    state: started
+  loop: '{{ [''containerd'',''kubelet''] | select(''in'', recovery_services) | list }}'
+- name: Verify selected units are active
+  ansible.builtin.command:
+    argv:
+    - systemctl
+    - is-active
+    - '{{ item }}.service'
+  loop: '{{ recovery_services }}'
+  changed_when: false
+  register: repaired_unit
+  until: repaired_unit.rc == 0
+  retries: 5
+  delay: 3
+- name: Verify the repaired Kubernetes node becomes Ready
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - --kubeconfig
+    - '{{ recovery_kubeconfig_file }}'
+    - --cache-dir
+    - '{{ recovery_kube_cache }}'
+    - wait
+    - --for=condition=Ready
+    - node/{{ inventory_hostname }}
+    - --timeout=90s
+  delegate_to: localhost
+  become: false
+  changed_when: false

@@ -1,0 +1,8 @@
+---
+recovery_runner_confirmed: false
+recovery_runner_expected_hostname: ""
+recovery_runner_user: automation
+recovery_runner_repo: /opt/gpu-iac
+recovery_runner_config: /opt/gpu-iac/ansible/recovery.local.yml
+recovery_runner_state_dir: /opt/gpu-iac/ansible/.state/recovery
+recovery_runner_interval_seconds: 60

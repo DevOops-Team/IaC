@@ -1,0 +1,10 @@
+- name: Prepare worker training namespace
+  ansible.builtin.include_tasks: namespace.yml
+  vars:
+    seed_context: '{{ eks_cluster.context }}'
+    seed_namespace: training
+- name: Seed worker pull Secret
+  ansible.builtin.include_tasks: registry.yml
+  vars:
+    seed_context: '{{ eks_cluster.context }}'
+    seed_namespace: training

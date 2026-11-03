@@ -1,0 +1,4 @@
+---
+node_taints:
+  - "node-role.kubernetes.io/control-plane:NoSchedule"
+# Override kube_vip_interface here if this VM uses a different LAN interface.

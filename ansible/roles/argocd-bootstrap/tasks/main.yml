@@ -1,0 +1,76 @@
+- name: Prepare checksum-pinned bootstrap overlay
+  ansible.builtin.file:
+    path: '{{ argocd_cache }}'
+    state: directory
+    mode: '0700'
+- name: Download official versioned HA manifest
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/argoproj/argo-cd/{{ argocd_version }}/manifests/ha/install.yaml
+    dest: '{{ argocd_cache }}/upstream.yaml'
+    checksum: '{{ argocd_manifest_checksum }}'
+    mode: '0600'
+- name: Render worker-only Argo HA overlay
+  ansible.builtin.copy:
+    dest: '{{ argocd_cache }}/kustomization.yaml'
+    mode: '0600'
+    content: "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n- upstream.yaml\npatches:\n\
+      - target:\n    kind: Deployment|StatefulSet\n  patch: '[{\"op\": \"add\", \"path\": \"/spec/template/spec/nodeSelector\"\
+      , \"value\": {\"platform-worker\":\n    \"true\"}}]'\n"
+- name: Ensure Argo CD namespace exists for first installation
+  ansible.builtin.include_tasks: namespace.yml
+  vars:
+    seed_context: '{{ manager_context }}'
+    seed_namespace: argocd
+- name: Install Argo CD once using server-side apply
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - -n
+    - argocd
+    - apply
+    - --server-side
+    - -k
+    - '{{ argocd_cache }}'
+  register: argo_install
+  changed_when: '''created'' in argo_install.stdout or ''configured'' in argo_install.stdout'
+- name: Wait for Argo API server
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - -n
+    - argocd
+    - rollout
+    - status
+    - deployment/argocd-server
+    - --timeout=600s
+  changed_when: false
+- name: Wait for Argo repo server
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - -n
+    - argocd
+    - rollout
+    - status
+    - deployment/argocd-repo-server
+    - --timeout=600s
+  changed_when: false
+- name: Wait for Argo application controller
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - -n
+    - argocd
+    - rollout
+    - status
+    - statefulset/argocd-application-controller
+    - --timeout=600s
+  changed_when: false

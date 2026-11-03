@@ -1,0 +1,8 @@
+---
+- name: Install timer inside the main-server dedicated management VM
+  hosts: recovery_runner
+  connection: local
+  become: true
+  gather_facts: true
+  roles:
+  - recovery-runner

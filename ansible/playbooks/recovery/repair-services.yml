@@ -1,0 +1,9 @@
+---
+- name: One-node confirmed service recovery only
+  hosts: '{{ recovery_target | default(''recovery_no_target'') }}'
+  become: true
+  gather_facts: false
+  serial: 1
+  any_errors_fatal: true
+  roles:
+  - recovery-services

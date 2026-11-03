@@ -1,0 +1,47 @@
+- name: Require registry and DNS-01 bootstrap credentials
+  ansible.builtin.assert:
+    that:
+    - lookup('env','GHCR_USERNAME') | length > 0
+    - lookup('env','GHCR_TOKEN') | length > 0
+    - lookup('env','CLOUDFLARE_DNS_API_TOKEN') | length > 0
+  no_log: true
+  diff: false
+- name: Prepare local bootstrap namespaces
+  ansible.builtin.include_tasks: namespace.yml
+  loop:
+  - platform
+  - cert-manager
+  loop_control:
+    loop_var: seed_namespace
+  vars:
+    seed_context: '{{ manager_context }}'
+- name: Seed manager image pull Secret
+  ansible.builtin.include_tasks: registry.yml
+  vars:
+    seed_context: '{{ manager_context }}'
+    seed_namespace: platform
+- name: Seed DNS-01 API token via stdin
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - apply
+    - -f
+    - '-'
+    stdin: '{{ {"apiVersion":"v1","kind":"Secret","metadata":{"name":"cloudflare-dns-api-token","namespace":"cert-manager"},"type":"Opaque","stringData":{"api-token":lookup("env","CLOUDFLARE_DNS_API_TOKEN")}}
+      | to_json }}'
+  no_log: true
+  diff: false
+- name: Seed EKS registry Secrets
+  ansible.builtin.include_tasks: worker.yml
+  loop: '{{ eks_clusters }}'
+  loop_control:
+    loop_var: eks_cluster
+  when: seed_eks_credentials | default(false) | bool
+- name: Seed MultiKueue remote credential Secrets
+  ansible.builtin.include_tasks: remote.yml
+  loop: '{{ eks_clusters }}'
+  loop_control:
+    loop_var: eks_cluster
+  when: seed_multikueue_credentials | default(false) | bool

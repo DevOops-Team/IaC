@@ -1,0 +1,13 @@
+---
+- name: Validate HA topology locally before touching any VM
+  hosts: localhost
+  gather_facts: false
+  connection: local
+  roles:
+  - topology-preflight
+- name: Check VM prerequisites without modifying hosts
+  hosts: k8s_cluster
+  become: true
+  gather_facts: true
+  roles:
+  - vm-preflight

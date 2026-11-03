@@ -1,0 +1,13 @@
+- name: Seed pull credential without storing plaintext manifest
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ seed_context }}'
+    - apply
+    - -f
+    - '-'
+    stdin: '{{ {"apiVersion":"v1","kind":"Secret","metadata":{"name":"ghcr-pull","namespace":seed_namespace},"type":"kubernetes.io/dockerconfigjson","stringData":{".dockerconfigjson":{"auths":{"ghcr.io":{"auth":(lookup("env","GHCR_USERNAME")
+      ~ ":" ~ lookup("env","GHCR_TOKEN")) | b64encode}}} | to_json}} | to_json }}'
+  no_log: true
+  diff: false

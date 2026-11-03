@@ -1,0 +1,24 @@
+- name: Check namespace prerequisite
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ seed_context }}'
+    - get
+    - namespace
+    - '{{ seed_namespace }}'
+    - --ignore-not-found
+    - -o
+    - name
+  register: seed_ns
+  changed_when: false
+- name: Create namespace only when absent (GitOps manages desired namespace state)
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ seed_context }}'
+    - create
+    - namespace
+    - '{{ seed_namespace }}'
+  when: seed_ns.stdout | length == 0

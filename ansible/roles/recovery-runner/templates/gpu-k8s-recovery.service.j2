@@ -1,0 +1,16 @@
+[Unit]
+Description=Classify Kubernetes failures and run bounded Ansible service recovery
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+User={{ recovery_runner_user }}
+WorkingDirectory={{ recovery_runner_repo }}/ansible
+ExecStart={{ recovery_runner_repo }}/ansible/.venv/bin/python {{ recovery_runner_repo }}/ansible/scripts/recovery/watcher.py --config {{ recovery_runner_config }} --apply
+Environment=PYTHONUNBUFFERED=1
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths={{ recovery_runner_state_dir }}
+TimeoutStartSec=600
