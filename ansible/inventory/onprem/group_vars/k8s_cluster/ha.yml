@@ -12,3 +12,15 @@ loadbalancer_apiserver:
   port: 6443
 supplementary_addresses_in_ssl_keys:
   - "{{ kube_vip_address }}"
+
+# Three host etcd members colocated with the control-plane VMs.
+# Every API server uses ALL members, never only its own local etcd.
+etcd_deployment_type: host
+etcd_hosts: "{{ groups['etcd'] }}"
+etcd_access_addresses: >-
+  {%- for host in groups['etcd'] -%}
+  https://{{ hostvars[host]['access_ip'] }}:2379{% if not loop.last %},{% endif %}
+  {%- endfor -%}
+# Refuse startup when the built-in initial consistency check detects corruption.
+etcd_experimental_initial_corrupt_check: true
+kube_vip_leader_election_enabled: true

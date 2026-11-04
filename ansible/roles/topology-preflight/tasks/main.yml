@@ -14,3 +14,13 @@
       hostvars, 'physical_host') | sort
     - groups['k8s_cluster'] | map('extract', hostvars, 'ip') | unique | list | length == 6
     fail_msg: Review ADR-3 six-VM hosts.yaml, physical placement, API VIP/interface and CIDR overlap; then set onprem_inventory_confirmed=true.
+
+- name: Require API-server access to all three etcd members
+  ansible.builtin.assert:
+    that:
+      - hostvars[groups['etcd'][0]].etcd_deployment_type == 'host'
+      - hostvars[groups['etcd'][0]].etcd_experimental_initial_corrupt_check | bool
+      - hostvars[groups['etcd'][0]].etcd_access_addresses.split(',') | length == 3
+      - hostvars[groups['etcd'][0]].etcd_access_addresses.split(',') | unique | length == 3
+      - hostvars[groups['etcd'][0]].kube_vip_leader_election_enabled | bool
+    fail_msg: 'Keep all three etcd endpoints and kube-vip leader election; do not switch to a single local etcd endpoint.'

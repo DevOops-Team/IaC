@@ -1,0 +1,22 @@
+---
+- name: Read live API-server static Pod manifest
+  ansible.builtin.slurp:
+    src: /etc/kubernetes/manifests/kube-apiserver.yaml
+  register: etcd_ha_manifest
+- name: Extract configured etcd endpoint flag
+  ansible.builtin.set_fact:
+    etcd_ha_flags: "{{ ((etcd_ha_manifest.content | b64decode | from_yaml).spec.containers | selectattr('name','equalto','kube-apiserver') | first).command | select('match','^--etcd-servers=') | list }}"
+- name: Require all expected members in the actual API-server configuration
+  ansible.builtin.assert:
+    that:
+      - etcd_ha_flags | length == 1
+      - (etcd_ha_flags[0] | regex_replace('^--etcd-servers=', '')).split(',') | sort == etcd_access_addresses.split(',') | sort
+- name: Inspect etcd endpoint health and corruption alarms without modifying data
+  ansible.builtin.script:
+    cmd: "{{ role_path }}/files/check_etcd.py {{ inventory_hostname }} {{ etcd_access_addresses }}"
+    executable: /usr/bin/python3
+  register: etcd_ha_probe
+  changed_when: false
+- name: Show quorum health assessment
+  ansible.builtin.debug:
+    msg: '{{ etcd_ha_probe.stdout | from_json }}'

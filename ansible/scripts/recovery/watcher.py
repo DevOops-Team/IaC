@@ -40,12 +40,16 @@ def cycle(config, apply=False):
     os.umask(0o077)
     state_dir = absolute(config.get('state_dir', '.state/recovery'))
     state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-    lock = open(state_dir/'watcher.lock', 'a')
-    try:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        print('Another recovery cycle is running; skipped.')
-        return 0
+    with open(state_dir/'watcher.lock', 'a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print('Another recovery cycle is running; skipped.')
+            return 0
+        return _locked_cycle(config, apply, state_dir)
+
+
+def _locked_cycle(config, apply, state_dir):
     env = dict(os.environ)
     env.update(ANSIBLE_CONFIG=str(ROOT/'ansible.cfg'), ANSIBLE_LOCAL_TEMP=str(state_dir/'tmp'),
                ANSIBLE_SSH_CONTROL_PATH_DIR=str(state_dir/'ssh'), ANSIBLE_ROLES_PATH=str(ROOT/'roles'),

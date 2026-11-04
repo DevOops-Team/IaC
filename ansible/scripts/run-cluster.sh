@@ -14,6 +14,7 @@ if [[ "${1:-}" == --syntax-check ]]; then
   ANSIBLE_HOST_KEY_CHECKING=True "$ANSIBLE" -i "$INV" "$ROOT/playbooks/infra/preflight.yml" --syntax-check
   ANSIBLE_HOST_KEY_CHECKING=True "$ANSIBLE" -i "$INV" cluster.yml --syntax-check
   ANSIBLE_HOST_KEY_CHECKING=True "$ANSIBLE" -i "$INV" "$ROOT/playbooks/k8s/configure-certificates.yml" --syntax-check
+  ANSIBLE_HOST_KEY_CHECKING=True "$ANSIBLE" -i "$INV" "$ROOT/playbooks/k8s/verify-etcd-ha.yml" --syntax-check
   exit
 fi
 # Keep upstream roles/config resolution, but retain SSH host-key verification.
@@ -24,3 +25,5 @@ export ANSIBLE_SSH_ARGS='-o ControlMaster=auto -o ControlPersist=60s'
 "$ANSIBLE" -i "$INV" cluster.yml --become "$@"
 
 "$ANSIBLE" -i "$INV" "$ROOT/playbooks/k8s/configure-certificates.yml" --become "$@"
+
+"$ANSIBLE" -i "$INV" "$ROOT/playbooks/k8s/verify-etcd-ha.yml" --become "$@"

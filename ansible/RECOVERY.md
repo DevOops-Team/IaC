@@ -171,3 +171,8 @@ rm /opt/gpu-iac/ansible/.state/recovery/maintenance
 ```
 
 정책 테스트와 가짜 CLI 통합 테스트는 실제 SSH·systemd·Kubernetes를 호출하지 않습니다. 실제 systemd 서비스/자원 압박/네트워크 단절을 다루는 복구 실험은 별도 테스트 환경에서 검증해야 합니다.
+
+
+## Pod 내부 프로세스 복구
+
+Calico를 포함한 Pod의 컨테이너 종료·liveness 실패는 Kubernetes 기본 재시작으로 처리합니다. 별도 Calico Pod 삭제 복구와 3회 재생성 카운터는 제거했습니다. 외부 watcher는 kubelet/containerd 서비스 복구만 담당합니다. 이전 state.json에 남은 calico 기록은 읽거나 실행에 사용하지 않습니다. Kubernetes liveness failureThreshold=3은 연속 실패 3회 후 재시작을 뜻하며, 총 재시작 횟수를 3회로 제한하지 않습니다.
