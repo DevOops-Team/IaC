@@ -1,0 +1,11 @@
+- name: Require confirmed bootstrap input and EKS cluster list
+  ansible.builtin.assert:
+    that:
+    - bootstrap_config_confirmed | default(false) | bool
+    - eks_clusters | default([]) | length > 0
+- name: Create MultiKueue access and kubeconfig per worker cluster
+  ansible.builtin.include_tasks: cluster.yml
+  loop: '{{ eks_clusters }}'
+  loop_control:
+    loop_var: eks_cluster
+    label: '{{ eks_cluster.name }}'

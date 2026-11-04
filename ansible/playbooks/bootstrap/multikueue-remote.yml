@@ -1,0 +1,6 @@
+- name: Create MultiKueue remote access kubeconfigs on EKS worker clusters
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+  - multikueue-remote

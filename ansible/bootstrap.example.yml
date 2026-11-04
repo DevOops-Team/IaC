@@ -4,19 +4,22 @@ gitops_repo_url: https://github.com/YOUR_ORG/gpu-k8s.git
 gitops_root_dir: /absolute/path/gpu-k8s/argocd/bootstrap
 seed_eks_credentials: false
 seed_multikueue_credentials: false
+# kubeconfig_file: written by playbooks/bootstrap/multikueue-remote.yml, read by seed-secrets.
+# Keep it under ansible/.cache/ (gitignored). Optional multikueue_server overrides the API
+# address the manager uses to reach that cluster (default: the admin context's server).
 eks_clusters:
 - name: eks-a
   context: YOUR_EKS_A_CONTEXT
   kubeconfig_secret: eks-a-kubeconfig
-  kubeconfig_file: /absolute/path/eks-a.kubeconfig
+  kubeconfig_file: /absolute/path/gpu-iac/ansible/.cache/multikueue/eks-a.kubeconfig
 - name: eks-b
   context: YOUR_EKS_B_CONTEXT
   kubeconfig_secret: eks-b-kubeconfig
-  kubeconfig_file: /absolute/path/eks-b.kubeconfig
+  kubeconfig_file: /absolute/path/gpu-iac/ansible/.cache/multikueue/eks-b.kubeconfig
 - name: eks-c
   context: YOUR_EKS_C_CONTEXT
   kubeconfig_secret: eks-c-kubeconfig
-  kubeconfig_file: /absolute/path/eks-c.kubeconfig
+  kubeconfig_file: /absolute/path/gpu-iac/ansible/.cache/multikueue/eks-c.kubeconfig
 edge_domain: devoops.site
 frontend_namespace: platform
 frontend_service_name: frontend

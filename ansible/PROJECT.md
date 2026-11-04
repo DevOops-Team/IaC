@@ -49,6 +49,14 @@ bootstrap.local.yml의 gitops_repo_url과 gitops_root_dir(실행 머신의 gpu-k
 .venv/bin/ansible-playbook playbooks/bootstrap/register-root.yml -e @bootstrap.local.yml
 ```
 
+MultiKueue 원격 인증 파일은 먼저 아래 플레이북으로 만듭니다. 각 EKS의 kueue-system에 multikueue-sa ServiceAccount·최소 ClusterRole(Job·JobSet·Kueue Workload)·장기 토큰 Secret을 만들고, 토큰만 담은 kubeconfig를 eks_clusters[].kubeconfig_file에 0600으로 씁니다. 실행 머신에 EKS 관리 context(aws eks get-token 등)가 있어야 합니다. 관리 클러스터가 EKS API에 실행 머신과 다른 주소로 닿으면 multikueue_server를 지정합니다.
+
+```bash
+.venv/bin/ansible-playbook playbooks/bootstrap/multikueue-remote.yml -e @bootstrap.local.yml
+```
+
+토큰 교체: 해당 EKS에서 `kubectl -n kueue-system delete secret multikueue-sa` → multikueue-remote.yml → seed-secrets.yml(seed_multikueue_credentials=true) 순서로 다시 실행합니다. 다른 잡 종류(PyTorchJob 등)를 디스패치하려면 roles/multikueue-remote/files/rbac.yaml에 권한을 먼저 추가합니다.
+
 seed_eks_credentials=true면 EKS training namespace의 ghcr-pull도 등록합니다. seed_multikueue_credentials=true면 kueue-system namespace(없으면 생성, 이후 Kueue 설치가 이어받음)에 eks-a-kubeconfig 등 Secret을 등록합니다. 따라서 Kueue 설치 전에 실행해도 됩니다. 해당 인증 파일은 CA·token 또는 내장 인증서가 있어야 하고 exec/auth-provider·외부 파일 의존성을 거부합니다. 유효기간·갱신은 별도 관리합니다.
 부트스트랩은 Secret 등록을 위해 없는 namespace만 생성하며, 이후 namespace의 원하는 상태는 gpu-k8s가 관리합니다. 자동으로 Cloudflare token을 추정하거나 빈 값을 저장하지 않습니다.
 site.yml은 MAP 확인 → Argo 설치 → Secret → root 등록을 묶습니다. 모든 실제 입력·접근 권한이 준비된 후에만 사용합니다. Cloudflare 외부 공개는 별도 단계입니다.
