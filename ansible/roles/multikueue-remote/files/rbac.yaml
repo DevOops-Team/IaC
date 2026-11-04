@@ -1,0 +1,60 @@
+# MultiKueue remote access on one EKS worker cluster.
+# Based on Kueue v0.20 create-multikueue-kubeconfig.sh, trimmed to the job types
+# this project dispatches (batch Job, JobSet). Add rules here before dispatching
+# another kind (e.g. PyTorchJob, RayJob) or MultiKueue cannot create it remotely.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: multikueue-sa
+  namespace: kueue-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: multikueue-sa-role
+rules:
+- apiGroups: [batch]
+  resources: [jobs]
+  verbs: [create, delete, get, list, watch]
+- apiGroups: [batch]
+  resources: [jobs/status]
+  verbs: [get]
+- apiGroups: [jobset.x-k8s.io]
+  resources: [jobsets]
+  verbs: [create, delete, get, list, watch]
+- apiGroups: [jobset.x-k8s.io]
+  resources: [jobsets/status]
+  verbs: [get]
+- apiGroups: [kueue.x-k8s.io]
+  resources: [workloads]
+  verbs: [create, delete, get, list, watch, update, patch]
+- apiGroups: [kueue.x-k8s.io]
+  resources: [workloads/status]
+  verbs: [get, patch, update]
+- apiGroups: [kueue.x-k8s.io]
+  resources: [clusterqueues, localqueues]
+  verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: multikueue-sa-crb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: multikueue-sa-role
+subjects:
+- kind: ServiceAccount
+  name: multikueue-sa
+  namespace: kueue-system
+---
+# Long-lived token. Rotate: delete this Secret, rerun playbooks/eks/multikueue-access.yml,
+# then rerun playbooks/onprem/register-worker-credential.yml for the same EKS.
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: multikueue-sa
+  namespace: kueue-system
+  annotations:
+    kubernetes.io/service-account.name: multikueue-sa
