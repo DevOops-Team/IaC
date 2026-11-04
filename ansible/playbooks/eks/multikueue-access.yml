@@ -1,0 +1,8 @@
+- name: Create this EKS MultiKueue ServiceAccount and token-only kubeconfig
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  environment:
+    KUBECONFIG: '{{ eks_kubeconfig_file }}'
+  roles:
+  - multikueue-remote

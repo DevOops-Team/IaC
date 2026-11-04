@@ -23,7 +23,10 @@ eks_cluster:
   name: '{{ eks_alias }}'
   context: '{{ eks_context }}'
   kubeconfig_secret: eks-b-kubeconfig
-  kubeconfig_file: /absolute/path/eks-b-multikueue.kubeconfig
+  # Written by playbooks/eks/multikueue-access.yml; keep under ansible/.cache/ (gitignored).
+  kubeconfig_file: /absolute/path/gpu-iac/ansible/.cache/multikueue/eks-b.kubeconfig
+  # Optional: API address the manager uses for this EKS when it differs from the admin kubeconfig.
+  # multikueue_server: https://PRIVATE_EKS_ENDPOINT
 eks_gpu_nodepool: YOUR_GPU_NODEPOOL
 eks_karpenter_namespace: kube-system
 eks_karpenter_deployment: karpenter

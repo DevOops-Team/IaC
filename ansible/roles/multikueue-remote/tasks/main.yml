@@ -1,0 +1,97 @@
+- name: Require reviewed single-EKS configuration and absolute output path
+  ansible.builtin.assert:
+    that:
+    - eks_config_confirmed | bool
+    - eks_alias in ['eks-a','eks-b','eks-c']
+    - '''YOUR_'' not in eks_context'
+    - eks_kubeconfig_file is match('^/')
+    - eks_cluster.context == eks_context
+    - eks_cluster.name == eks_alias
+    - eks_cluster.kubeconfig_file is match('^/')
+    - '''/absolute/path/'' not in eks_cluster.kubeconfig_file'
+    - eks_cluster.kubeconfig_file != eks_kubeconfig_file
+- name: Ensure kueue-system exists before Kueue is installed by GitOps
+  ansible.builtin.include_role:
+    name: gitops-secrets
+    tasks_from: namespace
+  vars:
+    seed_context: '{{ eks_context }}'
+    seed_namespace: kueue-system
+- name: Apply MultiKueue ServiceAccount, RBAC and token Secret
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ eks_context }}'
+    - apply
+    - -f
+    - '{{ role_path }}/files/rbac.yaml'
+  register: mk_rbac
+  changed_when: '''created'' in mk_rbac.stdout or ''configured'' in mk_rbac.stdout'
+- name: Wait for the token controller to fill the Secret
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ eks_context }}'
+    - -n
+    - kueue-system
+    - get
+    - secret
+    - multikueue-sa
+    - -o
+    - json
+  register: mk_token_secret
+  until: ((mk_token_secret.stdout | from_json).data | default({})).token | default('') | length > 0
+  retries: 10
+  delay: 3
+  changed_when: false
+  no_log: true
+- name: Read the worker API address from the admin kubeconfig
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - config
+    - view
+    - --context
+    - '{{ eks_context }}'
+    - --minify
+    - -o
+    - jsonpath={.clusters[0].cluster.server}
+  register: mk_admin_server
+  changed_when: false
+- name: Prepare private kubeconfig directory
+  ansible.builtin.file:
+    path: '{{ eks_cluster.kubeconfig_file | dirname }}'
+    state: directory
+    mode: '0700'
+- name: Write token-only kubeconfig for the manager's MultiKueue Secret
+  ansible.builtin.copy:
+    dest: '{{ eks_cluster.kubeconfig_file }}'
+    mode: '0600'
+    content: '{{ mk_kubeconfig | to_nice_yaml }}'
+  vars:
+    # Override when the manager reaches this EKS API by a different address than
+    # this runner does (VPN/private endpoint, or kind's internal address).
+    mk_server: '{{ eks_cluster.multikueue_server | default(mk_admin_server.stdout, true) }}'
+    mk_data: '{{ (mk_token_secret.stdout | from_json).data }}'
+    mk_kubeconfig:
+      apiVersion: v1
+      kind: Config
+      clusters:
+      - name: '{{ eks_alias }}'
+        cluster:
+          server: '{{ mk_server }}'
+          certificate-authority-data: '{{ mk_data["ca.crt"] }}'
+      users:
+      - name: '{{ eks_alias }}-multikueue-sa'
+        user:
+          token: '{{ mk_data.token | b64decode }}'
+      contexts:
+      - name: '{{ eks_alias }}'
+        context:
+          cluster: '{{ eks_alias }}'
+          user: '{{ eks_alias }}-multikueue-sa'
+      current-context: '{{ eks_alias }}'
+  no_log: true
+  diff: false

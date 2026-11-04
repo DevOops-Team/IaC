@@ -17,7 +17,8 @@ environments/eks/
 - eks_cluster_name/eks_gpu_nodepool: AWS가 만든 실제 이름.
 - eks_alias: Argo에 등록할 이름 eks-a/b/c.
 - eks_context/eks_kubeconfig_file: 이 EKS에만 접속할 명시적 관리 context/파일.
-- eks_cluster.kubeconfig_file: **별도 MultiKueue 전용** 내장 인증 kubeconfig. aws exec 등에 의존하지 않아야 함.
+- eks_cluster.kubeconfig_file: **별도 MultiKueue 전용** 내장 인증 kubeconfig. aws exec 등에 의존하지 않아야 함. playbooks/eks/multikueue-access.yml이 만들며, ansible/.cache/ 아래(Git 제외)에 둡니다.
+- eks_cluster.multikueue_server(선택): 매니저가 이 EKS API에 닿는 주소가 관리용 kubeconfig의 server와 다를 때(VPN·사설 엔드포인트) 지정.
 - GPU/system node selector: gpu-k8s/eks/<alias>/resources.yaml의 ResourceFlavor와 실제 노드 라벨에 맞춤.
 - gitops_root_dir: 실행 환경에 내려받은 gpu-k8s/argocd/bootstrap/eks/<alias>의 절대 경로.
 - manager_context/bootstrap_config_confirmed: 중앙 Argo에 root와 원격 Secret을 등록할 때만 필요.
@@ -54,9 +55,15 @@ Managed Node Group·그룹 desiredSize·그룹 Auto Repair 검사는 제거했�
 # 중앙 Argo에 EKS A root만 등록
 .venv/bin/ansible-playbook playbooks/eks/register-root.yml -e @environments/eks/eks-a.local.yml
 
+# EKS A에 MultiKueue 전용 ServiceAccount·토큰을 만들고 토큰 kubeconfig를 eks_cluster.kubeconfig_file에 작성
+.venv/bin/ansible-playbook playbooks/eks/multikueue-access.yml -e @environments/eks/eks-a.local.yml
+
 # EKS A의 전용 kubeconfig를 온프레미스 매니저 Secret으로 등록
 .venv/bin/ansible-playbook playbooks/onprem/register-worker-credential.yml -e @environments/eks/eks-a.local.yml
 ```
+
+multikueue-access.yml은 EKS의 kueue-system(없으면 생성, 이후 Kueue 설치가 이어받음)에 multikueue-sa ServiceAccount·최소 ClusterRole(Job·JobSet·Kueue Workload)·장기 토큰 Secret을 만들고, 토큰만 담은 kubeconfig를 0600으로 씁니다. EKS preflight를 거치지 않으므로 Kueue 설치 전에 실행할 수 있습니다. register-worker-credential.yml도 매니저에 kueue-system이 없으면 만든 뒤 Secret을 등록합니다.
+토큰 교체: 해당 EKS에서 `kubectl -n kueue-system delete secret multikueue-sa` → multikueue-access.yml → register-worker-credential.yml 순서로 다시 실행합니다. 다른 잡 종류(PyTorchJob 등)를 디스패치하려면 roles/multikueue-remote/files/rbac.yaml에 권한을 먼저 추가합니다.
 
 Registry에는 GHCR_USERNAME/GHCR_TOKEN이 필요합니다. EKS 등록 root는 별도로 Argo CLI 등에서 EKS를 eks-a 이름으로 등록한 뒤 sync합니다. 관리용 kubeconfig의 AWS exec 인증은 해당 실행 환경/profile에 맞게 준비합니다. AWS CLI 점검에 aws_profile을 줬다는 것만으로 다른 kubeconfig의 인증 profile이 자동 수정되지는 않습니다.
 B/C는 각 local.yml로 따로 실행합니다. 하나의 명령에 세 EKS를 자동으로 묶지 않습니다.
