@@ -1,0 +1,4 @@
+- ansible.builtin.import_playbook: ../k8s/verify-manager-map.yml
+- ansible.builtin.import_playbook: ../bootstrap/install-argocd.yml
+- ansible.builtin.import_playbook: ../bootstrap/seed-secrets.yml
+- ansible.builtin.import_playbook: ../bootstrap/register-root.yml

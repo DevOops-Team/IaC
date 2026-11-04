@@ -2,3 +2,6 @@
 node_taints:
   - "node-role.kubernetes.io/control-plane:NoSchedule"
 # Override kube_vip_interface here if this VM uses a different LAN interface.
+
+# Different days; missed runs are not replayed by the project timer drop-in.
+auto_renew_certificates_systemd_calendar: "Tue *-*-1,2,3,4,5,6,7 03:00:00 UTC"

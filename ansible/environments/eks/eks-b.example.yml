@@ -1,0 +1,29 @@
+eks_config_confirmed: false
+eks_alias: eks-b
+aws_region: ap-northeast-2
+aws_profile: ''
+eks_cluster_name: YOUR_EKS_B_CLUSTER_NAME
+eks_context: YOUR_EKS_B_CONTEXT
+eks_kubeconfig_file: /absolute/path/eks-b-admin.kubeconfig
+eks_expected_version: '1.35'
+eks_expected_cluster_uid: ''
+eks_min_gpu_nodes: 5
+eks_min_gpu_total: 5
+eks_min_system_nodes: 2
+eks_gpu_node_selector:
+  node-role.devoops.site/gpu: 'true'
+eks_system_node_selector:
+  node-role.devoops.site/system: 'true'
+eks_require_monitoring_addon: true
+bootstrap_config_confirmed: false
+manager_context: YOUR_ONPREM_CONTEXT
+gitops_repo_url: https://github.com/DevOops-Team/K8s.git
+gitops_root_dir: /absolute/path/gpu-k8s/argocd/bootstrap/eks/eks-b
+eks_cluster:
+  name: '{{ eks_alias }}'
+  context: '{{ eks_context }}'
+  kubeconfig_secret: eks-b-kubeconfig
+  kubeconfig_file: /absolute/path/eks-b-multikueue.kubeconfig
+eks_gpu_nodepool: YOUR_GPU_NODEPOOL
+eks_karpenter_namespace: kube-system
+eks_karpenter_deployment: karpenter

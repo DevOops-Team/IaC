@@ -1,0 +1,23 @@
+---
+- name: Read controller deployment without changing GitOps resources
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --context
+      - '{{ manager_context }}'
+      - --request-timeout=10s
+      - -n
+      - platform
+      - get
+      - deployment
+      - recovery-controller
+      - -o
+      - json
+  register: recovery_controller_deployment
+  changed_when: false
+- name: Report foundation status without claiming recovery readiness
+  ansible.builtin.debug:
+    msg:
+      desired_replicas: '{{ (recovery_controller_deployment.stdout | from_json).spec.replicas }}'
+      execution_enabled: false
+      note: 'Foundation only. Kafka, DynamoDB fencing and scheduler adapters are not implemented.'

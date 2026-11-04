@@ -1,0 +1,8 @@
+---
+- name: Read-only verification of the manager recovery controller foundation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - manager-preflight
+    - recovery-controller-check

@@ -1,0 +1,27 @@
+#!/bin/bash
+set -euo pipefail
+exec 9>/run/onprem-certs-renew.lock
+flock -n 9 || exit 0
+# An already expired admin.conf cannot pass this check: use the manual outage procedure.
+/usr/local/bin/kubectl --kubeconfig=/etc/kubernetes/admin.conf --request-timeout=15s get --raw=/readyz >/dev/null
+nodes=$(/usr/local/bin/kubectl --kubeconfig=/etc/kubernetes/admin.conf --request-timeout=15s get nodes -o json)
+/usr/bin/python3 -c '
+import json,sys
+nodes={n["metadata"]["name"]:n for n in json.load(sys.stdin)["items"]}
+peers={{ groups['kube_control_plane'] | difference([inventory_hostname]) | to_json }}
+for peer in peers:
+    n=nodes.get(peer,{})
+    if not any(c.get("type")=="Ready" and c.get("status")=="True" for c in n.get("status",{}).get("conditions",[])):
+        raise SystemExit("Skip renewal: another control-plane is not Ready")
+' <<< "$nodes"
+# -e makes a failed renewal abort before the upstream restart section.
+/bin/bash -e /usr/local/bin/k8s-certs-renew.sh
+# Authenticate and check readiness, rather than only testing a TCP port.
+for attempt in {1..30}; do
+  if /usr/local/bin/kubectl --kubeconfig=/etc/kubernetes/admin.conf --request-timeout=5s get --raw=/readyz >/dev/null; then
+    exit 0
+  fi
+  sleep 5
+done
+echo 'Renewal finished but API readiness verification failed' >&2
+exit 1

@@ -1,0 +1,22 @@
+- name: Seed one EKS training image credential
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+  - name: Require explicit single-EKS configuration and registry credential
+    ansible.builtin.assert:
+      that:
+      - eks_config_confirmed | bool
+      - eks_cluster.context == eks_context
+      - eks_cluster.name == eks_alias
+      - lookup('env','GHCR_USERNAME') | length > 0
+      - lookup('env','GHCR_TOKEN') | length > 0
+    no_log: true
+  - name: Seed registry only in this EKS
+    ansible.builtin.include_role:
+      name: gitops-secrets
+      tasks_from: worker
+  environment:
+    KUBECONFIG: '{{ eks_kubeconfig_file }}'
+  roles:
+  - eks-preflight

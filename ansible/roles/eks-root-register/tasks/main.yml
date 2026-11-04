@@ -1,0 +1,14 @@
+- name: Require one reviewed EKS root
+  ansible.builtin.assert:
+    that:
+    - eks_config_confirmed | bool
+    - eks_alias in ['eks-a','eks-b','eks-c']
+    - eks_root.metadata.name == 'gpu-root-' ~ eks_alias
+    - eks_root.spec.source.path == 'argocd/applications/eks/' ~ eks_alias
+    - eks_project.metadata.name == 'gpu-' ~ eks_alias
+  vars:
+    eks_root: '{{ lookup("file",gitops_root_dir ~ "/root.yaml") | from_yaml }}'
+    eks_project: '{{ lookup("file",gitops_root_dir ~ "/project.yaml") | from_yaml }}'
+- name: Register only the checked root
+  ansible.builtin.include_role:
+    name: gitops-root

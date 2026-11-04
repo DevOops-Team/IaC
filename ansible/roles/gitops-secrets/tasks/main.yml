@@ -33,15 +33,3 @@
       | to_json }}'
   no_log: true
   diff: false
-- name: Seed EKS registry Secrets
-  ansible.builtin.include_tasks: worker.yml
-  loop: '{{ eks_clusters }}'
-  loop_control:
-    loop_var: eks_cluster
-  when: seed_eks_credentials | default(false) | bool
-- name: Seed MultiKueue remote credential Secrets
-  ansible.builtin.include_tasks: remote.yml
-  loop: '{{ eks_clusters }}'
-  loop_control:
-    loop_var: eks_cluster
-  when: seed_multikueue_credentials | default(false) | bool

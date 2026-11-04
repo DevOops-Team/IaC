@@ -1,0 +1,65 @@
+---
+- name: Require confirmed inventory and supported renewal policy
+  ansible.builtin.assert:
+    that:
+      - onprem_inventory_confirmed | bool
+      - auto_renew_certificates | bool
+      - groups['kube_control_plane'] | length == 3
+      - auto_renew_certificates_systemd_calendar is defined
+- name: Require upstream Kubespray renewal script
+  ansible.builtin.stat:
+    path: /usr/local/bin/k8s-certs-renew.sh
+  register: certificate_upstream_script
+- name: Refuse integration before Kubespray installation
+  ansible.builtin.assert:
+    that: certificate_upstream_script.stat.exists
+- name: Create systemd override directories
+  ansible.builtin.file:
+    path: '/etc/systemd/system/{{ item }}.d'
+    state: directory
+    mode: '0755'
+  loop:
+    - k8s-certs-renew.service
+    - k8s-certs-renew.timer
+- name: Install guarded renewal wrapper
+  ansible.builtin.template:
+    src: renew-guard.sh.j2
+    dest: /usr/local/bin/onprem-certs-renew-guard
+    owner: root
+    group: root
+    mode: '0700'
+    validate: /bin/bash -n %s
+- name: Bound renewal runtime and invoke guarded upstream script
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/k8s-certs-renew.service.d/10-project.conf
+    mode: '0644'
+    content: |
+      [Service]
+      ExecStart=
+      ExecStart=/usr/local/bin/onprem-certs-renew-guard
+      TimeoutStartSec=20min
+- name: Prevent simultaneous missed-run replay after a multi-node reboot
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/k8s-certs-renew.timer.d/10-project.conf
+    mode: '0644'
+    content: |
+      [Timer]
+      Persistent=false
+      RandomizedDelaySec=0
+- name: Enable timer with overrides without running renewal now
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+    name: k8s-certs-renew.timer
+    enabled: true
+    state: restarted
+- name: Read certificate expiry without private keys
+  ansible.builtin.command:
+    argv: [/usr/local/bin/kubeadm, certs, check-expiration]
+  changed_when: false
+  register: certificate_expiry_report
+- name: Show renewal scope and expiry
+  ansible.builtin.debug:
+    msg:
+      schedule: '{{ auto_renew_certificates_systemd_calendar }}'
+      expiry: '{{ certificate_expiry_report.stdout_lines }}'
+      scope: 'kubeadm leaf certificates only; external etcd, CA and remote kubeconfig copies are excluded'

@@ -1,0 +1,178 @@
+- name: Require reviewed single-EKS configuration
+  ansible.builtin.assert:
+    that:
+    - eks_config_confirmed | bool
+    - eks_alias in ['eks-a','eks-b','eks-c']
+    - '''YOUR_'' not in eks_cluster_name'
+    - '''YOUR_'' not in eks_context'
+    - '''YOUR_'' not in eks_gpu_nodepool'
+    - eks_kubeconfig_file is match('^/')
+    - eks_cluster.context == eks_context
+    - eks_cluster.name == eks_alias
+    - eks_gpu_node_selector | length > 0
+    - eks_system_node_selector | length > 0
+- name: Build explicit AWS and Kubernetes read-only command prefixes
+  ansible.builtin.set_fact:
+    eks_aws_command: '{{ [''aws'',''--region'',aws_region,''--no-cli-pager'',''--cli-connect-timeout'',''10'',''--cli-read-timeout'',''30'']
+      + ([''--profile'',aws_profile] if aws_profile | default('''') | length > 0 else
+      []) }}'
+    eks_kubectl_command: '{{ [''kubectl'',''--context'',eks_context,''--kubeconfig'',eks_kubeconfig_file,''--request-timeout=10s'']
+      }}'
+- name: Read AWS-managed cluster identity
+  ansible.builtin.command:
+    argv: '{{ eks_aws_command + [''eks'',''describe-cluster'',''--name'',eks_cluster_name,''--output'',''json'']
+      }}'
+  register: eks_aws_cluster
+  changed_when: false
+- name: Require active EKS and expected Kubernetes version
+  ansible.builtin.assert:
+    that:
+    - (eks_aws_cluster.stdout | from_json).cluster.status == 'ACTIVE'
+    - (eks_aws_cluster.stdout | from_json).cluster.version == eks_expected_version
+- name: Read monitoring agent addon status
+  ansible.builtin.command:
+    argv: '{{ eks_aws_command + [''eks'',''describe-addon'',''--cluster-name'',eks_cluster_name,''--addon-name'',''eks-node-monitoring-agent'',''--output'',''json'']
+      }}'
+  register: eks_agent
+  changed_when: false
+  when: eks_require_monitoring_addon | bool
+- name: Require active monitoring agent addon when requested
+  ansible.builtin.assert:
+    that: (eks_agent.stdout | from_json).addon.status == 'ACTIVE'
+  when: eks_require_monitoring_addon | bool
+- name: Read selected Kubernetes endpoint without credentials
+  ansible.builtin.command:
+    argv: '{{ eks_kubectl_command + [''config'',''view'',''--minify'',''-o'',''jsonpath={.clusters[0].cluster.server}'']
+      }}'
+  register: eks_selected_endpoint
+  changed_when: false
+- name: Prevent a context from targeting another cluster
+  ansible.builtin.assert:
+    that: eks_selected_endpoint.stdout == (eks_aws_cluster.stdout | from_json).cluster.endpoint
+- name: Check EKS API readiness
+  ansible.builtin.command:
+    argv: '{{ eks_kubectl_command + [''get'',''--raw=/readyz''] }}'
+  changed_when: false
+- name: Read EKS cluster UID
+  ansible.builtin.command:
+    argv: '{{ eks_kubectl_command + [''get'',''namespace'',''kube-system'',''-o'',''jsonpath={.metadata.uid}'']
+      }}'
+  register: eks_uid
+  changed_when: false
+- name: Validate optional pinned cluster UID
+  ansible.builtin.assert:
+    that: eks_expected_cluster_uid | default('') | length == 0 or eks_uid.stdout ==
+      eks_expected_cluster_uid
+- name: Require nodepools.karpenter.sh
+  ansible.builtin.command:
+    argv: '{{ eks_kubectl_command + [''wait'', ''--for=condition=Established'', ''crd/nodepools.karpenter.sh'',
+      ''--timeout=30s''] }}'
+  changed_when: false
+- name: Require nodeclaims.karpenter.sh
+  ansible.builtin.command:
+    argv: '{{ eks_kubectl_command + [''wait'', ''--for=condition=Established'', ''crd/nodeclaims.karpenter.sh'',
+      ''--timeout=30s''] }}'
+  changed_when: false
+- name: Require ec2nodeclasses.karpenter.k8s.aws
+  ansible.builtin.command:
+    argv: '{{ eks_kubectl_command + [''wait'', ''--for=condition=Established'', ''crd/ec2nodeclasses.karpenter.k8s.aws'',
+      ''--timeout=30s''] }}'
+  changed_when: false
+- name: Require available Karpenter controller
+  ansible.builtin.command:
+    argv: '{{ eks_kubectl_command + [''-n'',eks_karpenter_namespace,''rollout'',''status'',''deployment/''
+      ~ eks_karpenter_deployment,''--timeout=60s''] }}'
+  changed_when: false
+- name: Read GPU NodePool
+  ansible.builtin.command:
+    argv: '{{ eks_kubectl_command + [''get'',''nodepool'',eks_gpu_nodepool,''-o'',''json'']
+      }}'
+  register: eks_pool
+  changed_when: false
+- name: Require ready AWS GPU NodePool
+  ansible.builtin.assert:
+    that:
+    - ((eks_pool.stdout | from_json).status.conditions | selectattr('type','equalto','Ready')
+      | map(attribute='status') | list) == ['True']
+    - (eks_pool.stdout | from_json).spec.template.spec.nodeClassRef.group == 'karpenter.k8s.aws'
+    - (eks_pool.stdout | from_json).spec.template.spec.nodeClassRef.kind == 'EC2NodeClass'
+- name: Require ready referenced EC2NodeClass
+  ansible.builtin.command:
+    argv: '{{ eks_kubectl_command + [''wait'',''--for=condition=Ready'',''ec2nodeclass/''
+      ~ (eks_pool.stdout | from_json).spec.template.spec.nodeClassRef.name,''--timeout=60s'']
+      }}'
+  changed_when: false
+- name: Read GPU pool NodeClaims
+  ansible.builtin.command:
+    argv: '{{ eks_kubectl_command + [''get'',''nodeclaims'',''-l'',''karpenter.sh/nodepool=''
+      ~ eks_gpu_nodepool,''-o'',''json''] }}'
+  register: eks_claims
+  changed_when: false
+- name: Read selected GPU nodes
+  ansible.builtin.command:
+    argv: '{{ eks_kubectl_command + [''get'',''nodes'',''-l'',(eks_gpu_node_selector.items()
+      | map(''join'',''='') | join('','')),''-o'',''json''] }}'
+  register: eks_gpu_nodes
+  changed_when: false
+- name: Require every selected GPU node to belong to the configured Karpenter pool
+    and a ready NodeClaim
+  ansible.builtin.assert:
+    that:
+    - item.metadata.labels['karpenter.sh/nodepool'] | default('') == eks_gpu_nodepool
+    - matching_claims | length == 1
+    - (matching_claims | first).metadata.deletionTimestamp is not defined
+    - ((matching_claims | first).status.conditions | selectattr('type','equalto','Ready')
+      | map(attribute='status') | list) == ['True']
+  vars:
+    matching_claims: '{{ (eks_claims.stdout | from_json)[''items''] | selectattr(''status.nodeName'',''defined'')
+      | selectattr(''status.nodeName'',''equalto'',item.metadata.name) | list }}'
+  loop: '{{ (eks_gpu_nodes.stdout | from_json)[''items''] }}'
+  loop_control:
+    label: '{{ item.metadata.name }}'
+- name: Read selected system nodes
+  ansible.builtin.command:
+    argv: '{{ eks_kubectl_command + [''get'',''nodes'',''-l'',(eks_system_node_selector.items()
+      | map(''join'',''='') | join('','')),''-o'',''json''] }}'
+  register: eks_system_nodes
+  changed_when: false
+- name: Require GPU resources and separate controller node capacity
+  ansible.builtin.assert:
+    that:
+    - (eks_gpu_nodes.stdout | from_json)['items'] | length >= eks_min_gpu_nodes |
+      int
+    - (eks_gpu_nodes.stdout | from_json)['items'] | map(attribute='status.allocatable')
+      | map('dict2items') | flatten | selectattr('key','equalto','nvidia.com/gpu')
+      | map(attribute='value') | map('int') | sum >= eks_min_gpu_total | int
+    - (eks_system_nodes.stdout | from_json)['items'] | length >= eks_min_system_nodes
+      | int
+    - ((eks_gpu_nodes.stdout | from_json)['items'] | map(attribute='metadata.name')
+      | list) | intersect((eks_system_nodes.stdout | from_json)['items'] | map(attribute='metadata.name')
+      | list) | length == 0
+- name: Require selected nodes to be Ready and schedulable
+  ansible.builtin.assert:
+    that:
+    - (item.status.conditions | selectattr('type','equalto','Ready') | map(attribute='status')
+      | list) == ['True']
+    - not item.spec.unschedulable | default(false) | bool
+    - item.metadata.deletionTimestamp is not defined
+  loop: '{{ (eks_gpu_nodes.stdout | from_json)[''items''] + (eks_system_nodes.stdout
+    | from_json)[''items''] }}'
+  loop_control:
+    label: '{{ item.metadata.name }}'
+- name: Require scheduling-team CRDs
+  ansible.builtin.command:
+    argv: '{{ eks_kubectl_command + [''wait'',''--for=condition=Established'',''crd/''
+      ~ item,''--timeout=30s''] }}'
+  loop:
+  - jobsets.jobset.x-k8s.io
+  - workloads.kueue.x-k8s.io
+  - clusterqueues.kueue.x-k8s.io
+  changed_when: false
+- name: Report checked EKS identity and GPU capacity
+  ansible.builtin.debug:
+    msg:
+      alias: '{{ eks_alias }}'
+      cluster_uid: '{{ eks_uid.stdout }}'
+      endpoint_matches_aws: true
+      gpu_nodes: '{{ (eks_gpu_nodes.stdout | from_json)[''items''] | length }}'
+      aws_resources_modified: false

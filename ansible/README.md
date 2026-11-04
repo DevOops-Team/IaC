@@ -19,3 +19,7 @@
 ## 장애 대응
 
 `playbooks/recovery/`는 진단·한 노드 서비스 복구·관리 실행기 timer 설치용입니다. `scripts/recovery/watcher.py`가 장애를 분류하고 명시적 설정을 켠 경우만 호출합니다. 기본 관찰 전용이며 [RECOVERY.md](RECOVERY.md)를 따릅니다.
+
+## 온프레미스/EKS 실행 분리
+
+site.yml은 onprem/site.yml만 호출합니다. 온프레미스 bootstrap은 EKS API를 조회하거나 Secret을 쓰지 않습니다. EKS별 입력과 읽기 전용 점검·적용 진입점은 [EKS.md](EKS.md)를 따릅니다.

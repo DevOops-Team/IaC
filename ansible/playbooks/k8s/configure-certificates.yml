@@ -1,0 +1,23 @@
+---
+- name: Install guarded certificate timer integration after Kubespray
+  hosts: kube_control_plane
+  become: true
+  gather_facts: false
+  serial: 1
+  any_errors_fatal: true
+  roles:
+    - certificate-renewal
+
+- name: Verify kubelet client certificate rotation on every Kubernetes VM
+  hosts: k8s_cluster
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read kubelet configuration
+      ansible.builtin.slurp:
+        src: /etc/kubernetes/kubelet-config.yaml
+      register: certificate_kubelet_config
+    - name: Require automatic client rotation
+      ansible.builtin.assert:
+        that:
+          - (certificate_kubelet_config.content | b64decode | from_yaml).rotateCertificates | default(false) | bool

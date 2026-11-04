@@ -38,7 +38,7 @@ Argo UI/API는 우선 `kubectl --context CONTEXT -n argocd port-forward svc/argo
 
 형제 gpu-k8s 폴더는 별도 저장소입니다. 아직 실제 GitHub URL이 없으므로 해당 저장소에서 configure.py로 URL·이미지·ACME 이메일을 설정하고 검증한 뒤 push합니다. CI는 gpu-k8s의 이미지 digest만 갱신하도록 연결합니다.
 Argo CD에 비공개 repo 읽기 자격증명과 EKS 3개를 eks-a/eks-b/eks-c 이름으로 등록합니다. CLI 등록은 별도 관리 환경에서 수행하며 토큰·키는 Git에 넣지 않습니다. Argo CD cluster credential과 MultiKueue 전용 kubeconfig는 별도입니다.
-bootstrap.local.yml의 gitops_repo_url과 gitops_root_dir(실행 머신의 gpu-k8s/argocd/bootstrap 절대 경로)를 맞춥니다. 부모 Git 저장소의 origin을 자동 사용하지 않습니다.
+bootstrap.local.yml의 gitops_repo_url과 gitops_root_dir(실행 머신의 gpu-k8s/argocd/bootstrap/onprem 절대 경로)를 맞춥니다. 부모 Git 저장소의 origin을 자동 사용하지 않습니다.
 
 ## 4. Secret·root 등록
 
@@ -49,7 +49,7 @@ bootstrap.local.yml의 gitops_repo_url과 gitops_root_dir(실행 머신의 gpu-k
 .venv/bin/ansible-playbook playbooks/bootstrap/register-root.yml -e @bootstrap.local.yml
 ```
 
-seed_eks_credentials=true면 EKS training namespace의 ghcr-pull도 등록합니다. seed_multikueue_credentials=true면 외부 설치된 kueue-system namespace에 eks-a-kubeconfig 등 Secret을 등록합니다. 해당 인증 파일은 CA·token 또는 내장 인증서가 있어야 하고 exec/auth-provider·외부 파일 의존성을 거부합니다. 유효기간·갱신은 별도 관리합니다.
+EKS registry와 MultiKueue credential은 별도 playbooks/eks/seed-registry.yml 및 playbooks/onprem/register-worker-credential.yml에서 EKS별로 등록합니다. 해당 인증 파일은 CA·token 또는 내장 인증서가 있어야 하고 exec/auth-provider·외부 파일 의존성을 거부합니다. 유효기간·갱신은 별도 관리합니다.
 부트스트랩은 Secret 등록을 위해 없는 namespace만 생성하며, 이후 namespace의 원하는 상태는 gpu-k8s가 관리합니다. 자동으로 Cloudflare token을 추정하거나 빈 값을 저장하지 않습니다.
 site.yml은 MAP 확인 → Argo 설치 → Secret → root 등록을 묶습니다. 모든 실제 입력·접근 권한이 준비된 후에만 사용합니다. Cloudflare 외부 공개는 별도 단계입니다.
 
@@ -75,3 +75,7 @@ VM 검사·설치·실제 장애 전환, 외부 DNS/Tunnel, API/IAM 권한과 �
 ## 장애 감지와 복구 실행기
 
 기본 설치가 끝난 뒤 같은 메인 서버 전용 Ansible VM에 주기 실행기를 설치합니다. inventory/runner/hosts.yaml은 실행기 설치용이며 Kubernetes의 6개 노드 inventory와 분리합니다. site.yml에는 포함하지 않습니다. 진단·분류·회복 가능한 서비스 시작과 보류 조건은 [RECOVERY.md](RECOVERY.md)에 정리했습니다.
+
+## 온프레미스/EKS 실행 분리
+
+site.yml은 onprem/site.yml만 호출합니다. 온프레미스 bootstrap은 EKS API를 조회하거나 Secret을 쓰지 않습니다. EKS별 입력과 읽기 전용 점검·적용 진입점은 [EKS.md](EKS.md)를 따릅니다.

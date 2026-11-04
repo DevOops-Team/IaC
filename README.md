@@ -26,3 +26,7 @@ Cloudflare의 실제 계정 리소스 생성과 Secret 등록은 bootstrap이며
 ## 장애 감지·서비스 복구
 
 `ansible/playbooks/recovery/`, `ansible/scripts/recovery/`에 진단·분류·제한적 복구와 메인 서버 전용 Ubuntu VM의 실행기 timer를 추가했습니다. 기본은 관찰 전용이며 설치/부트스트랩 site.yml과 분리합니다. [RECOVERY.md](ansible/RECOVERY.md)를 확인합니다.
+
+## EKS별 설정
+
+온프레미스 기본 실행과 EKS별 실행을 분리했습니다. `ansible/environments/eks/`의 A/B/C 예시와 `playbooks/eks/`를 사용합니다. AWS 자원은 읽기 전용으로 점검하고 큐 설정은 gpu-k8s의 eks/<alias>가 관리합니다. [EKS 안내](ansible/EKS.md).

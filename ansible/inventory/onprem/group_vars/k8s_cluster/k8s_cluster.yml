@@ -29,3 +29,10 @@ kube_apiserver_feature_gates:
   - "MutatingAdmissionPolicy=true"
 kube_api_runtime_config:
   - "admissionregistration.k8s.io/v1beta1=true"
+
+# kubeadm-managed API/control-plane leaf certificates (not external etcd/CA).
+auto_renew_certificates: true
+# Kubelet client certificates: automatic CSR renewal and in-process reload.
+kubelet_rotate_certificates: true
+# Serving CSR approval needs a separate identity-checking approver; do not auto-approve all CSRs.
+kubelet_rotate_server_certificates: false

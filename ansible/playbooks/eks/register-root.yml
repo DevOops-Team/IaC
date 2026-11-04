@@ -1,0 +1,7 @@
+- name: Register only this EKS root in the manager Argo CD
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+  - manager-preflight
+  - eks-root-register

@@ -33,3 +33,6 @@ ansible/.state/
 
 # Local VS Code settings
 .vscode/
+
+ansible/environments/**/*.local.yml
+ansible/environments/**/*.local.yaml
