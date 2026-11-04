@@ -49,7 +49,7 @@ bootstrap.local.yml의 gitops_repo_url과 gitops_root_dir(실행 머신의 gpu-k
 .venv/bin/ansible-playbook playbooks/bootstrap/register-root.yml -e @bootstrap.local.yml
 ```
 
-seed_eks_credentials=true면 EKS training namespace의 ghcr-pull도 등록합니다. seed_multikueue_credentials=true면 외부 설치된 kueue-system namespace에 eks-a-kubeconfig 등 Secret을 등록합니다. 해당 인증 파일은 CA·token 또는 내장 인증서가 있어야 하고 exec/auth-provider·외부 파일 의존성을 거부합니다. 유효기간·갱신은 별도 관리합니다.
+seed_eks_credentials=true면 EKS training namespace의 ghcr-pull도 등록합니다. seed_multikueue_credentials=true면 kueue-system namespace(없으면 생성, 이후 Kueue 설치가 이어받음)에 eks-a-kubeconfig 등 Secret을 등록합니다. 따라서 Kueue 설치 전에 실행해도 됩니다. 해당 인증 파일은 CA·token 또는 내장 인증서가 있어야 하고 exec/auth-provider·외부 파일 의존성을 거부합니다. 유효기간·갱신은 별도 관리합니다.
 부트스트랩은 Secret 등록을 위해 없는 namespace만 생성하며, 이후 namespace의 원하는 상태는 gpu-k8s가 관리합니다. 자동으로 Cloudflare token을 추정하거나 빈 값을 저장하지 않습니다.
 site.yml은 MAP 확인 → Argo 설치 → Secret → root 등록을 묶습니다. 모든 실제 입력·접근 권한이 준비된 후에만 사용합니다. Cloudflare 외부 공개는 별도 단계입니다.
 

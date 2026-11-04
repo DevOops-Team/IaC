@@ -39,6 +39,12 @@
   loop_control:
     loop_var: eks_cluster
   when: seed_eks_credentials | default(false) | bool
+- name: Prepare kueue-system namespace for MultiKueue Secrets (Kueue may be installed later by GitOps)
+  ansible.builtin.include_tasks: namespace.yml
+  vars:
+    seed_context: '{{ manager_context }}'
+    seed_namespace: kueue-system
+  when: seed_multikueue_credentials | default(false) | bool
 - name: Seed MultiKueue remote credential Secrets
   ansible.builtin.include_tasks: remote.yml
   loop: '{{ eks_clusters }}'
