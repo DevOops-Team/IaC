@@ -14,6 +14,8 @@ cp bootstrap.example.yml bootstrap.local.yml
 SSH 계정은 VM마다 호스트 이름과 같습니다(master1~3, worker1~3). hosts.yaml에 호스트별 ansible_user로 적혀 있고, Kubespray가 sudo(--become)로 실행하므로 각 계정에 sudo 권한이 있어야 합니다. 설치는 6대에 SSH가 닿는 개인 로컬 우분투에서 실행해도 되며, 이 경우 admin.conf(inventory/onprem/artifacts/)는 그 머신에만 남습니다. 복구 실행기는 상시 켜진 VM이 필요합니다.
 inventory/onprem/hosts.yaml의 실제 IP·SSH 계정·physical_host·리소스를 맞추고, ha.yml의 VIP·NIC와 Pod/Service CIDR 비중복을 확인한 다음 onprem_inventory_confirmed=true로 설정합니다.
 
+배포 계정이 sudo 비밀번호를 요구하면 --ask-become-pass를 붙입니다. run-cluster.sh는 비밀번호를 한 번만 묻고 네 플레이북에 함께 사용합니다.
+
 ```bash
 .venv/bin/ansible-playbook playbooks/infra/configure-vms.yml --ask-become-pass
 ./scripts/run-cluster.sh --syntax-check

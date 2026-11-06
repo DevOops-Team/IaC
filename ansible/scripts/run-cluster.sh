@@ -17,13 +17,33 @@ if [[ "${1:-}" == --syntax-check ]]; then
   ANSIBLE_HOST_KEY_CHECKING=True "$ANSIBLE" -i "$INV" "$ROOT/playbooks/k8s/verify-etcd-ha.yml" --syntax-check
   exit
 fi
+# -K/--ask-become-pass: ask once and reuse it for all four playbooks
+# (each ansible-playbook call would otherwise prompt separately).
+# Not needed after playbooks/infra/passwordless-sudo.yml.
+ARGS=()
+ASK_BECOME=false
+for a in "$@"; do
+  case "$a" in
+    -K|--ask-become-pass) ASK_BECOME=true ;;
+    *) ARGS+=("$a") ;;
+  esac
+done
+if $ASK_BECOME; then
+  BECOME_FILE="$(mktemp)"
+  chmod 600 "$BECOME_FILE"
+  trap 'rm -f "$BECOME_FILE"' EXIT
+  read -rsp 'BECOME password: ' BECOME_PASS; echo
+  printf '%s\n' "$BECOME_PASS" > "$BECOME_FILE"
+  unset BECOME_PASS
+  ARGS+=(--become-password-file "$BECOME_FILE")
+fi
 # Keep upstream roles/config resolution, but retain SSH host-key verification.
 cd "$VENDOR"
 export ANSIBLE_HOST_KEY_CHECKING=True
 export ANSIBLE_SSH_ARGS='-o ControlMaster=auto -o ControlPersist=60s'
-"$ANSIBLE" -i "$INV" "$ROOT/playbooks/infra/preflight.yml" --become "$@"
-"$ANSIBLE" -i "$INV" cluster.yml --become "$@"
+"$ANSIBLE" -i "$INV" "$ROOT/playbooks/infra/preflight.yml" --become ${ARGS[@]+"${ARGS[@]}"}
+"$ANSIBLE" -i "$INV" cluster.yml --become ${ARGS[@]+"${ARGS[@]}"}
 
-"$ANSIBLE" -i "$INV" "$ROOT/playbooks/k8s/configure-certificates.yml" --become "$@"
+"$ANSIBLE" -i "$INV" "$ROOT/playbooks/k8s/configure-certificates.yml" --become ${ARGS[@]+"${ARGS[@]}"}
 
-"$ANSIBLE" -i "$INV" "$ROOT/playbooks/k8s/verify-etcd-ha.yml" --become "$@"
+"$ANSIBLE" -i "$INV" "$ROOT/playbooks/k8s/verify-etcd-ha.yml" --become ${ARGS[@]+"${ARGS[@]}"}
