@@ -11,6 +11,7 @@ cp bootstrap.example.yml bootstrap.local.yml
 ```
 
 이 명령들은 메인 서버의 Kubernetes 외부 Ansible 전용 Ubuntu VM(2 vCPU·RAM 2GB·디스크 20GB 계획)에서 실행합니다. Proxmox 호스트나 master1에 설치하지 않습니다. VM 생성 코드는 아직 없으므로 먼저 VM/네트워크·계정을 준비합니다. Python 3.12+, Git, kubectl, Helm/Argo CLI가 필요한 작업에 맞게 설치되어 있어야 합니다. VM 6대에 SSH·sudo·Python·swap off/cgroup v2를 준비합니다. VM 생성·IP·계정·공개키 초기 설정은 Terraform/VM 담당입니다.
+SSH 계정은 VM마다 호스트 이름과 같습니다(master1~3, worker1~3). hosts.yaml에 호스트별 ansible_user로 적혀 있고, Kubespray가 sudo(--become)로 실행하므로 각 계정에 sudo 권한이 있어야 합니다. 설치는 6대에 SSH가 닿는 개인 로컬 우분투에서 실행해도 되며, 이 경우 admin.conf(inventory/onprem/artifacts/)는 그 머신에만 남습니다. 복구 실행기는 상시 켜진 VM이 필요합니다.
 inventory/onprem/hosts.yaml의 실제 IP·SSH 계정·physical_host·리소스를 맞추고, ha.yml의 VIP·NIC와 Pod/Service CIDR 비중복을 확인한 다음 onprem_inventory_confirmed=true로 설정합니다.
 
 ```bash
