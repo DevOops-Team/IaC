@@ -1,10 +1,10 @@
 # gpu-iac — Kubernetes 실행 기반
 
-이 폴더는 Terraform 영역과 Ansible/Kubespray 실행 기반을 관리합니다. 실제 서버 적용·GitHub push는 수행하지 않았습니다.
+이 저장소는 AWS Terraform과 온프레미스 Ansible/Kubespray 설정을 관리합니다.
 
 ```text
 gpu-iac/
-├─ terraform/             # VM/AWS 자원 담당 코드 영역 (현재 비어 있음)
+├─ terraform/             # AWS prod 네트워크·VPN·EKS 코드 및 재사용 모듈
 ├─ ansible/
 │  ├─ inventory/onprem/   # Kubernetes VM 6대·HA·MAP 설정
 │  ├─ playbooks/
@@ -22,6 +22,27 @@ gpu-iac/
 Cloudflare의 실제 계정 리소스 생성과 Secret 등록은 bootstrap이며, cloudflared의 원하는 Pod 상태는 GitOps가 관리합니다. Kubernetes VM·API VIP·CoreDNS·MAP는 Kubespray가 관리합니다. Kueue·JobSet 컨트롤러는 스케줄링 파트 담당입니다.
 
 실행 순서는 [ansible/PROJECT.md](ansible/PROJECT.md)를 확인합니다. 두 폴더를 각각 VS Code로 열어 사용할 수 있고, *.code-workspace는 각 폴더만 포함합니다.
+
+## AWS Terraform
+
+- 실행 폴더: `terraform/environments/prod/network`
+- 재사용 EKS 모듈: `terraform/modules/eks`
+- 이름 접두어: `devoops-prod`, 공통 태그: `Project=devoops`, `Environment=prod`
+- 리전: `us-east-2`, 로컬 AWS SSO 프로필: `devoops`
+- 공인 IP 등 로컬 입력은 Git에서 제외된 `terraform.local.tfvars`로 전달합니다.
+- `prod` 기반 인프라 배포와 온프레미스에서 비공개 EKS API 접속을 2026-11-06에 검증했습니다. CPU 노드 1대가 `Ready`입니다.
+- 영속 데이터: `terraform/environments/prod/data` (S3·fencing).
+- state 전용 저장소는 `terraform/environments/prod/bootstrap`에서 관리합니다. 네 실행 폴더는 각각 S3 state와 잠금을 사용합니다. [Backend 안내](terraform/STATE-BACKEND.md)
+- 온프레 인증: `terraform/environments/prod/identity` (Roles Anywhere). [설정·배포 경계](terraform/ONPREM-AWS-IDENTITY.md).
+- `identity`의 IAM 역할은 `network`의 EKS Access Entry보다 먼저 생성해야 합니다. 워크로드 인증서 배포와 Kubernetes RBAC 연결은 후속 단계입니다.
+- Terraform과 이후 IaC 변경은 `develop`에 먼저 푸시합니다. `develop`에서 `main`으로 가는 PR에 `so1ky`를 리뷰어로 요청하고 승인 후 머지합니다.
+
+```shell
+cd terraform/environments/prod/network
+terraform init -backend-config="../../../backends/prod/network.s3.tfbackend"
+terraform validate
+terraform plan -var-file="terraform.local.tfvars"
+```
 
 ## 장애 감지·서비스 복구
 
