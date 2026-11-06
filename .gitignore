@@ -36,3 +36,9 @@ ansible/.state/
 
 ansible/environments/**/*.local.yml
 ansible/environments/**/*.local.yaml
+
+
+# Local Terraform inputs and saved plans
+*.local.tfvars
+*.tfplan
+*.tfplan.json

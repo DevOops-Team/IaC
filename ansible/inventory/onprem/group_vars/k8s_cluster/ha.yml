@@ -6,7 +6,7 @@ kube_vip_arp_enabled: true
 # Web traffic uses internal ClusterIP Service DNS, no service VIP advertisement.
 kube_vip_services_enabled: false
 kube_vip_address: 172.30.0.120
-kube_vip_interface: ens18
+kube_vip_interface: eth0
 loadbalancer_apiserver:
   address: "{{ kube_vip_address }}"
   port: 6443
