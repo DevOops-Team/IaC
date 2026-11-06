@@ -20,7 +20,10 @@
     that:
       - hostvars[groups['etcd'][0]].etcd_deployment_type == 'host'
       - hostvars[groups['etcd'][0]].etcd_experimental_initial_corrupt_check | bool
-      - hostvars[groups['etcd'][0]].etcd_access_addresses.split(',') | length == 3
-      - hostvars[groups['etcd'][0]].etcd_access_addresses.split(',') | unique | length == 3
+      # Check the raw inputs of etcd_access_addresses (ha.yml) instead of the templated
+      # value: ansible-core 2.19 cannot render another host's template that uses hostvars
+      # from localhost. verify-etcd-ha.yml checks the rendered endpoints on each master.
+      - groups['etcd'] | length == 3
+      - groups['etcd'] | map('extract', hostvars, 'access_ip') | select | unique | list | length == 3
       - hostvars[groups['etcd'][0]].kube_vip_leader_election_enabled | bool
     fail_msg: 'Keep all three etcd endpoints and kube-vip leader election; do not switch to a single local etcd endpoint.'
