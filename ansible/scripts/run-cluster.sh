@@ -13,6 +13,7 @@ if [[ "${1:-}" == --syntax-check ]]; then
   cd "$VENDOR"
   ANSIBLE_HOST_KEY_CHECKING=True "$ANSIBLE" -i "$INV" "$ROOT/playbooks/infra/preflight.yml" --syntax-check
   ANSIBLE_HOST_KEY_CHECKING=True "$ANSIBLE" -i "$INV" cluster.yml --syntax-check
+  ANSIBLE_HOST_KEY_CHECKING=True "$ANSIBLE" -i "$INV" "$ROOT/playbooks/k8s/admin-kubeconfig.yml" --syntax-check
   ANSIBLE_HOST_KEY_CHECKING=True "$ANSIBLE" -i "$INV" "$ROOT/playbooks/k8s/configure-certificates.yml" --syntax-check
   ANSIBLE_HOST_KEY_CHECKING=True "$ANSIBLE" -i "$INV" "$ROOT/playbooks/k8s/verify-etcd-ha.yml" --syntax-check
   exit
@@ -43,6 +44,8 @@ export ANSIBLE_HOST_KEY_CHECKING=True
 export ANSIBLE_SSH_ARGS='-o ControlMaster=auto -o ControlPersist=60s'
 "$ANSIBLE" -i "$INV" "$ROOT/playbooks/infra/preflight.yml" --become ${ARGS[@]+"${ARGS[@]}"}
 "$ANSIBLE" -i "$INV" cluster.yml --become ${ARGS[@]+"${ARGS[@]}"}
+
+"$ANSIBLE" -i "$INV" "$ROOT/playbooks/k8s/admin-kubeconfig.yml" --become ${ARGS[@]+"${ARGS[@]}"}
 
 "$ANSIBLE" -i "$INV" "$ROOT/playbooks/k8s/configure-certificates.yml" --become ${ARGS[@]+"${ARGS[@]}"}
 
