@@ -20,9 +20,14 @@ cd ansible
 ./scripts/setup-kubespray.sh
 root="$(pwd)"
 cd .vendor/kubespray
+# Kubespray ansible.cfg는 UserKnownHostsFile=/dev/null이라 호스트 키 검증을 켜려면 ssh_args를 덮어쓴다 (run-cluster.sh와 동일).
+export ANSIBLE_HOST_KEY_CHECKING=True
+export ANSIBLE_SSH_ARGS='-o ControlMaster=auto -o ControlPersist=60s'
 "$root/.venv/bin/ansible-inventory" -i "$root/inventory/monitoring/hosts.yaml" --graph
 "$root/.venv/bin/ansible-playbook" -i "$root/inventory/monitoring/hosts.yaml" cluster.yml --syntax-check
 "$root/.venv/bin/ansible-playbook" -i "$root/inventory/monitoring/hosts.yaml" cluster.yml --become --ask-become-pass
 ```
+
+kubeconfig는 `"$root/.venv/bin/ansible-playbook" -i "$root/inventory/monitoring/hosts.yaml" "$root/playbooks/k8s/admin-kubeconfig.yml" --become --ask-become-pass`로 세 노드 계정에 배포하고, 로컬은 `inventory/monitoring/artifacts/admin.conf`(gitignore)를 쓴다.
 
 배포 후 API VIP로 `kubectl get nodes` 실행 확인. 서비스 배포 후 `EXTERNAL-IP` 및 각 포트 연결 확인.
