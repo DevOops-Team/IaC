@@ -19,3 +19,5 @@ supplementary_addresses_in_ssl_keys:
   - "{{ kube_vip_address }}"
 
 etcd_deployment_type: host
+# Refuse startup on detected corruption, as ETCD-HA.md promises for every cluster.
+etcd_experimental_initial_corrupt_check: true

@@ -7,18 +7,21 @@ all:
       ip: 172.30.0.31
       access_ip: 172.30.0.31
       etcd_member_name: etcd-monitoring1
+      physical_host: pve3
     monitoring2:
       ansible_host: 172.30.0.32
       ansible_user: monitoring2
       ip: 172.30.0.32
       access_ip: 172.30.0.32
       etcd_member_name: etcd-monitoring2
+      physical_host: pve3
     monitoring3:
       ansible_host: 172.30.0.33
       ansible_user: monitoring3
       ip: 172.30.0.33
       access_ip: 172.30.0.33
       etcd_member_name: etcd-monitoring3
+      physical_host: pve1
   children:
     monitoring_nodes:
       hosts:
