@@ -1,0 +1,11 @@
+---
+kube_version: "1.35.8"
+container_manager: containerd
+kube_network_plugin: calico
+kube_proxy_mode: ipvs
+kube_proxy_strict_arp: true
+
+# Dedicated ranges, separate from the on-prem manager cluster's 10.233.0.0/17.
+kube_service_addresses: 10.234.0.0/18
+kube_pods_subnet: 10.234.64.0/18
+kubeconfig_localhost: true
