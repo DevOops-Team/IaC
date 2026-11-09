@@ -1,4 +1,4 @@
----
+# Source: on-prem infrastructure settings v4, 2026-11-09; personal PC is not a managed node.
 all:
   vars:
     onprem_inventory_confirmed: true
@@ -8,7 +8,7 @@ all:
       ansible_host: 172.30.0.11
       ip: 172.30.0.11
       access_ip: 172.30.0.11
-      physical_host: server
+      physical_host: devoops
       planned_vcpu: 2
       planned_memory_mb: 4096
       planned_disk_gb: 40
@@ -21,10 +21,10 @@ all:
       ansible_host: 172.30.0.12
       ip: 172.30.0.12
       access_ip: 172.30.0.12
-      physical_host: laptop1
+      physical_host: pve1
       planned_vcpu: 2
       planned_memory_mb: 4096
-      planned_disk_gb: null
+      planned_disk_gb: 40
       etcd_member_name: etcd-master2
       node_labels:
         platform-cluster: onprem-manager
@@ -34,10 +34,10 @@ all:
       ansible_host: 172.30.0.13
       ip: 172.30.0.13
       access_ip: 172.30.0.13
-      physical_host: laptop2
+      physical_host: pve2
       planned_vcpu: 2
       planned_memory_mb: 4096
-      planned_disk_gb: null
+      planned_disk_gb: 40
       etcd_member_name: etcd-master3
       node_labels:
         platform-cluster: onprem-manager
@@ -47,7 +47,7 @@ all:
       ansible_host: 172.30.0.21
       ip: 172.30.0.21
       access_ip: 172.30.0.21
-      physical_host: server
+      physical_host: devoops
       planned_vcpu: 4
       planned_memory_mb: 12288
       planned_disk_gb: 80
@@ -60,10 +60,10 @@ all:
       ansible_host: 172.30.0.22
       ip: 172.30.0.22
       access_ip: 172.30.0.22
-      physical_host: laptop1
+      physical_host: pve1
       planned_vcpu: 4
       planned_memory_mb: 12288
-      planned_disk_gb: null
+      planned_disk_gb: 80
       node_labels:
         platform-cluster: onprem-manager
         platform-role: worker
@@ -73,10 +73,10 @@ all:
       ansible_host: 172.30.0.23
       ip: 172.30.0.23
       access_ip: 172.30.0.23
-      physical_host: laptop2
+      physical_host: pve2
       planned_vcpu: 4
       planned_memory_mb: 12288
-      planned_disk_gb: null
+      planned_disk_gb: 80
       node_labels:
         platform-cluster: onprem-manager
         platform-role: worker

@@ -1,0 +1,8 @@
+pfsense_edge_confirmed: false
+pfsense_edge_interface: wan
+pfsense_edge_wan_ip: ''
+pfsense_edge_worker_ip: ''
+pfsense_edge_node_port: 30443
+pfsense_edge_source: any
+pfsense_edge_state: present
+pfsense_edge_rule_name: gpu-iac-traefik-https

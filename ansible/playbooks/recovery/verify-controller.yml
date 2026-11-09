@@ -1,5 +1,5 @@
 ---
-- name: Read-only verification of the manager recovery controller foundation
+- name: Read-only verification of manager recovery controller identity and configured mode
   hosts: localhost
   connection: local
   gather_facts: false

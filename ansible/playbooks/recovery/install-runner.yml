@@ -1,8 +1,12 @@
 ---
-- name: Install timer inside the main-server dedicated management VM
-  hosts: recovery_runner
+- name: Reject superseded always-on recovery runner installation
+  hosts: localhost
   connection: local
-  become: true
-  gather_facts: true
-  roles:
-  - recovery-runner
+  gather_facts: false
+  tasks:
+  - name: Follow adopted ADR-11 personal-PC manual execution
+    ansible.builtin.fail:
+      msg: >-
+        ADR-11 supersedes the dedicated VM and systemd recovery timer.
+        No runner is installed. Run scripts/recovery/watcher.py manually
+        from your personal PC; see ansible/RECOVERY.md.

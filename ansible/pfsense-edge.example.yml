@@ -1,0 +1,13 @@
+# Confirm only after checking GUI backup, rule conflicts and return routing.
+pfsense_edge_confirmed: false
+pfsense_edge_interface: wan
+# Exact pfSense WAN address or existing CARP VIP receiving forwarded TCP443.
+# This can differ from edge_public_ip when behind an upstream router.
+pfsense_edge_wan_ip: ''
+# Choose one actual platform worker IP from onprem inventory.
+pfsense_edge_worker_ip: ''
+pfsense_edge_node_port: 30443
+# Public website; restrict to a source network for a private test if required.
+pfsense_edge_source: any
+# Rollback removes only this named NAT rule and its associated filter rule.
+pfsense_edge_state: present

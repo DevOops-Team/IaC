@@ -6,7 +6,10 @@ edge_domain: devoops.site
 frontend_namespace: platform
 frontend_service_name: frontend
 acme_environment: production
-edge_origin_service: https://traefik.ingress-system.svc.cluster.local:443
-cloudflare_account_id: ''
 cloudflare_zone_id: ''
-cloudflare_tunnel_name: devoops-onprem
+edge_public_ip: ''
+# Set true only after external HTTPS verification through pfSense.
+edge_dns_confirmed: false
+# Explicit consent to replace an existing record (including Tunnel CNAME).
+edge_dns_replace_record_id: ''
+edge_dns_previous_content: ''

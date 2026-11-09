@@ -20,7 +20,7 @@ system_reserved: true
 system_memory_reserved: 512Mi
 system_cpu_reserved: 300m
 
-# Internal Service DNS used by cloudflared -> Traefik.
+# Internal Service DNS; external ingress uses pfSense -> Traefik NodePort.
 dns_mode: coredns
 
 # Manager cluster only: MAP beta API for the scheduling team's external dispatcher.

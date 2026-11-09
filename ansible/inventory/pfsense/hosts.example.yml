@@ -1,0 +1,11 @@
+# Separate inventory: never add firewalls to Kubespray's k8s_cluster group.
+all:
+  children:
+    pfsense_edge:
+      hosts:
+        edge_primary:
+          ansible_host: REPLACE_WITH_PFSENSE_MANAGEMENT_IP
+          ansible_user: root
+          # Use a key and known_hosts; do not disable host key checking.
+          # Set this to the Python path installed on your pfSense release.
+          ansible_python_interpreter: /usr/local/bin/python3.11

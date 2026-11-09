@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One detection cycle. A systemd timer repeats it outside the managed Kubernetes cluster."""
+"""One manually invoked detection cycle on a personal PC (adopted ADR-11)."""
 import argparse
 import fcntl
 import json

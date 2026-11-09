@@ -1,0 +1,6 @@
+- name: Forward public HTTPS through pfSense to Traefik
+  hosts: pfsense_edge
+  gather_facts: false
+  serial: 1
+  roles:
+  - pfsense-edge

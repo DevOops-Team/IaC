@@ -1,4 +1,8 @@
 cf_api: https://api.cloudflare.com/client/v4
 cf_headers:
-  Authorization: Bearer {{ lookup('env', 'CLOUDFLARE_TUNNEL_API_TOKEN') }}
+  Authorization: Bearer {{ lookup('env', 'CLOUDFLARE_DNS_API_TOKEN') }}
   Content-Type: application/json
+cloudflare_dns_ttl: 300
+edge_dns_confirmed: false
+edge_dns_replace_record_id: ''
+edge_dns_previous_content: ''

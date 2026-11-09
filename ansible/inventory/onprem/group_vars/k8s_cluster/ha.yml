@@ -1,9 +1,10 @@
 ---
-# Kubernetes API HA ONLY. Example address, reserve/confirm before deployment.
+# Manager API VIP 172.30.0.120:6443: in-use address in infrastructure settings v4.
+# Verify the interface name on the actual VMs before applying Kubespray.
 kube_vip_enabled: true
 kube_vip_controlplane_enabled: true
 kube_vip_arp_enabled: true
-# Web traffic uses internal ClusterIP Service DNS, no service VIP advertisement.
+# Web ingress uses pfSense -> Traefik NodePort; kube-vip advertises API only.
 kube_vip_services_enabled: false
 kube_vip_address: 172.30.0.120
 kube_vip_interface: eth0

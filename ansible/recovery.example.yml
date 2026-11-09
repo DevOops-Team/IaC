@@ -1,3 +1,5 @@
+# ADR-11: invoke one cycle manually on your personal PC; no timer installation.
+# Keep the same private state_dir between runs and hand off state before switching PCs.
 ---
 manager_context: YOUR_ONPREM_CONTEXT
 kubeconfig_file: /absolute/path/manager.kubeconfig

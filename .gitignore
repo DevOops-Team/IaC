@@ -42,3 +42,7 @@ ansible/environments/**/*.local.yaml
 *.local.tfvars
 *.tfplan
 *.tfplan.json
+
+# Local pfSense connection and topology inputs
+ansible/pfsense-edge.local.yml
+ansible/inventory/pfsense/hosts.local.yml

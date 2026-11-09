@@ -11,15 +11,15 @@ gpu-iac/
 │  │  ├─ infra/           # VM 준비·설치 전 검사
 │  │  ├─ k8s/             # 관리 API MAP 확인
 │  │  ├─ bootstrap/       # Argo CD 최초 설치·Secret·root 등록
-│  │  ├─ network/         # 외부 Cloudflare Tunnel·DNS API
+│  │  ├─ network/         # 외부 Cloudflare DNS API
 │  │  └─ site.yml         # 클러스터 설치 후 bootstrap 실행
 │  └─ roles/
 └─ .vscode/               # 이 폴더용 설정·구문 검사 task
 ```
 
-앱 Deployment·Service·RBAC, Traefik·cert-manager values, frontend Ingress·웹 인증서, cloudflared Pod, EKS 큐·MultiKueue 연결 객체는 형제 폴더 gpu-k8s로 이동했습니다. 이 저장소에서 해당 리소스를 반복 적용하지 않습니다.
+앱 Deployment·Service·RBAC, Traefik·cert-manager values, frontend Ingress·웹 인증서, EKS 큐·MultiKueue 연결 객체는 형제 폴더 gpu-k8s로 이동했습니다. 이 저장소에서 해당 리소스를 반복 적용하지 않습니다.
 
-Cloudflare의 실제 계정 리소스 생성과 Secret 등록은 bootstrap이며, cloudflared의 원하는 Pod 상태는 GitOps가 관리합니다. Kubernetes VM·API VIP·CoreDNS·MAP는 Kubespray가 관리합니다. Kueue·JobSet 컨트롤러는 스케줄링 파트 담당입니다.
+Cloudflare DNS-only 레코드는 bootstrap이 관리하며, HTTPS는 gpu-k8s의 Traefik·cert-manager가 처리합니다. 공인 IP → pfSense TCP 전달 → Traefik 경로를 먼저 검증합니다. Kubernetes VM·API VIP·CoreDNS·MAP는 Kubespray가 관리합니다. Kueue·JobSet 컨트롤러는 스케줄링 파트 담당입니다.
 
 실행 순서는 [ansible/PROJECT.md](ansible/PROJECT.md)를 확인합니다. 두 폴더를 각각 VS Code로 열어 사용할 수 있고, *.code-workspace는 각 폴더만 포함합니다.
 
@@ -46,7 +46,7 @@ terraform plan -var-file="terraform.local.tfvars"
 
 ## 장애 감지·서비스 복구
 
-`ansible/playbooks/recovery/`, `ansible/scripts/recovery/`에 진단·분류·제한적 복구와 메인 서버 전용 Ubuntu VM의 실행기 timer를 추가했습니다. 기본은 관찰 전용이며 설치/부트스트랩 site.yml과 분리합니다. [RECOVERY.md](ansible/RECOVERY.md)를 확인합니다.
+ADR-11에 따라 개인 PC에서 `ansible/playbooks/recovery/`, `ansible/scripts/recovery/`를 필요할 때 수동 실행합니다. 전용 VM·상시 복구 timer는 사용하지 않습니다. 기본은 관찰 전용이며 설치/부트스트랩 site.yml과 분리합니다. [RECOVERY.md](ansible/RECOVERY.md)를 확인합니다.
 
 ## EKS별 설정
 

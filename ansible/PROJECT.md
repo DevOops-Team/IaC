@@ -10,8 +10,8 @@ PYTHON_BIN=python3.12 ./scripts/setup-kubespray.sh
 cp bootstrap.example.yml bootstrap.local.yml
 ```
 
-이 명령들은 메인 서버의 Kubernetes 외부 Ansible 전용 Ubuntu VM(2 vCPU·RAM 2GB·디스크 20GB 계획)에서 실행합니다. Proxmox 호스트나 master1에 설치하지 않습니다. VM 생성 코드는 아직 없으므로 먼저 VM/네트워크·계정을 준비합니다. Python 3.12+, Git, kubectl, Helm/Argo CLI가 필요한 작업에 맞게 설치되어 있어야 합니다. VM 6대에 SSH·sudo·Python·swap off/cgroup v2를 준비합니다. VM 생성·IP·계정·공개키 초기 설정은 Terraform/VM 담당입니다.
-SSH 계정은 VM마다 호스트 이름과 같습니다(master1~3, worker1~3). hosts.yaml에 호스트별 ansible_user로 적혀 있고, Kubespray가 sudo(--become)로 실행하므로 각 계정에 sudo 권한이 있어야 합니다. 설치는 6대에 SSH가 닿는 개인 로컬 우분투에서 실행해도 되며, 이 경우 admin.conf(inventory/onprem/artifacts/)는 그 머신에만 남습니다. 복구 실행기는 상시 켜진 VM이 필요합니다.
+이 명령들은 ADR-11에 따라 Kubernetes 밖의 개인 PC에서 필요할 때 수동 실행합니다. 전용 VM을 만들거나 Proxmox 호스트·master1에 Ansible 실행기를 설치하지 않습니다. 개인 PC에는 Python 3.12+, Git, kubectl과 작업에 필요한 CLI를 준비합니다. macOS/Linux의 SSH 실행 환경을 사용하고 Windows는 WSL/Linux 환경을 준비합니다. VM 6대의 SSH·sudo·Python 등 대상 준비는 VM 담당과 확인합니다.
+SSH 계정은 VM 이름(master1~3, worker1~3)이며 hosts.yaml의 ansible_user에 기록합니다. kubeconfig·SSH 키는 개인 PC의 비공개 경로에 보관합니다. admin.conf(inventory/onprem/artifacts/)는 실행한 PC에만 생기므로 접근을 제한합니다. 개인 PC를 Kubernetes inventory에 추가하지 않습니다.
 inventory/onprem/hosts.yaml의 실제 IP·SSH 계정·physical_host·리소스를 맞추고, ha.yml의 VIP·NIC와 Pod/Service CIDR 비중복을 확인한 다음 onprem_inventory_confirmed=true로 설정합니다.
 
 배포 계정이 sudo 비밀번호를 요구하면 --ask-become-pass를 붙입니다. run-cluster.sh는 비밀번호를 한 번만 묻고 네 플레이북에 함께 사용합니다.
@@ -39,7 +39,7 @@ Argo UI/API는 우선 `kubectl --context CONTEXT -n argocd port-forward svc/argo
 
 ## 3. GitHub·이미지·클러스터 등록
 
-형제 gpu-k8s 폴더는 별도 저장소입니다. 아직 실제 GitHub URL이 없으므로 해당 저장소에서 configure.py로 URL·이미지·ACME 이메일을 설정하고 검증한 뒤 push합니다. CI는 gpu-k8s의 이미지 digest만 갱신하도록 연결합니다.
+형제 gpu-k8s 폴더는 별도 저장소(https://github.com/DevOops-Team/K8s.git)입니다. 해당 저장소에서 configure.py로 이미지·ACME 이메일 등 실제 입력을 설정하고 검증한 뒤 push합니다. CI는 gpu-k8s의 이미지 digest만 갱신하도록 연결합니다.
 Argo CD에 비공개 repo 읽기 자격증명과 EKS 3개를 eks-a/eks-b/eks-c 이름으로 등록합니다. CLI 등록은 별도 관리 환경에서 수행하며 토큰·키는 Git에 넣지 않습니다. Argo CD cluster credential과 MultiKueue 전용 kubeconfig는 별도입니다.
 bootstrap.local.yml의 gitops_repo_url과 gitops_root_dir(실행 머신의 gpu-k8s/argocd/bootstrap/onprem 절대 경로)를 맞춥니다. 부모 Git 저장소의 origin을 자동 사용하지 않습니다.
 
@@ -59,13 +59,13 @@ site.yml은 MAP 확인 → Argo 설치 → Secret → root 등록을 묶습니�
 ## 5. GitOps sync와 Cloudflare
 
 gpu-k8s README의 최초 sync 순서에 따라 foundation → Traefik/cert-manager → 앱 → 웹 인증서 순서로 진행합니다. Kueue/JobSet과 MAP 정책·디스패처는 스케줄링 파트에서 설치하고 worker 큐·원격 Secret·매니저 연결 순서로 진행합니다.
-frontend-tls가 production Ready이고 frontend endpoint가 준비된 후 Cloudflare account/zone과 환경변수 CLOUDFLARE_TUNNEL_API_TOKEN을 공급합니다.
+frontend-tls가 production Ready이고 frontend endpoint가 준비된 후 공인 IP → pfSense → Traefik HTTPS를 외부에서 검증합니다. Cloudflare zone·edge_public_ip와 CLOUDFLARE_DNS_API_TOKEN을 공급하고 edge_dns_confirmed를 true로 설정합니다.
 
 ```bash
 .venv/bin/ansible-playbook playbooks/network/configure-cloudflare.yml -e @bootstrap.local.yml
 ```
 
-이 플레이북은 외부 Tunnel·DNS·경로를 구성하고 cloudflare-system/cloudflared-token Secret을 저장합니다. cloudflared Deployment·PDB는 적용하거나 재시작하지 않습니다. 이후 Argo CD에서 gpu-cloudflared를 sync합니다. token 교체 후 실행 중인 커넥터는 운영 절차에 따라 rollout restart해야 합니다.
+이 플레이북은 DNS-only A/AAAA 레코드만 구성합니다. Tunnel·커넥터 토큰은 만들지 않습니다. 기존 DNS 변경은 레코드 ID와 현재 내용을 명시해야 합니다. 전환·정리 순서는 [EDGE.md](EDGE.md)를 따릅니다.
 
 ## 확인
 
@@ -73,12 +73,15 @@ frontend-tls가 production Ready이고 frontend endpoint가 준비된 후 Cloudf
 .venv/bin/ansible-playbook playbooks/site.yml --syntax-check
 ```
 
-VM 검사·설치·실제 장애 전환, 외부 DNS/Tunnel, API/IAM 권한과 학습 재개는 실제 환경에서 별도 검증해야 합니다. 이전 설정 파일이나 기존 리소스를 자동 삭제하지 않았습니다. 인계 중에는 기존 Ansible/Helm 배포를 다시 실행하지 않습니다.
+VM 검사·설치·실제 장애 전환, 외부 DNS·pfSense 전달, API/IAM 권한과 학습 재개는 실제 환경에서 별도 검증해야 합니다. 이전 설정 파일이나 기존 리소스를 자동 삭제하지 않았습니다. 인계 중에는 기존 Ansible/Helm 배포를 다시 실행하지 않습니다.
 
 ## 장애 감지와 복구 실행기
 
-기본 설치가 끝난 뒤 같은 메인 서버 전용 Ansible VM에 주기 실행기를 설치합니다. inventory/runner/hosts.yaml은 실행기 설치용이며 Kubernetes의 6개 노드 inventory와 분리합니다. site.yml에는 포함하지 않습니다. 진단·분류·회복 가능한 서비스 시작과 보류 조건은 [RECOVERY.md](RECOVERY.md)에 정리했습니다.
+개인 PC에서 읽기 전용 진단을 수동 실행하고 결과를 검토한 뒤 필요할 때만 제한된 서비스 복구를 호출합니다. 전용 VM·runner inventory·systemd 복구 timer 설치 구성은 제거했습니다. 기존 install-runner.yml은 설치하지 않고 ADR-11 안내와 함께 종료합니다. PC가 꺼져 있거나 명령을 실행하지 않으면 Ansible 점검·복구는 동작하지 않습니다. 진단·분류·회복 가능한 서비스 시작과 보류 조건은 [RECOVERY.md](RECOVERY.md)에 정리했습니다.
 
 ## 온프레미스/EKS 실행 분리
 
 site.yml은 onprem/site.yml만 호출합니다. 온프레미스 bootstrap은 EKS API를 조회하거나 Secret을 쓰지 않습니다. EKS별 입력과 읽기 전용 점검·적용 진입점은 [EKS.md](EKS.md)를 따릅니다.
+
+
+외부 진입점의 pfSense TCP443 포트 전달은 `playbooks/network/configure-pfsense-edge.yml`로 별도 적용합니다. 설치·연결 입력·단일 워커 진입점의 제한은 [EDGE.md](EDGE.md)를 확인합니다.

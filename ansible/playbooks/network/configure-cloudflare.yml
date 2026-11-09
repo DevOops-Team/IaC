@@ -1,4 +1,4 @@
-- name: Configure Cloudflare external Tunnel and DNS
+- name: Configure Cloudflare DNS-only public entrypoint
   hosts: localhost
   connection: local
   gather_facts: false

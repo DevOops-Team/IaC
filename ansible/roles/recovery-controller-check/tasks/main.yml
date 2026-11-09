@@ -15,9 +15,34 @@
       - json
   register: recovery_controller_deployment
   changed_when: false
-- name: Report foundation status without claiming recovery readiness
+- name: Require the documented controller identity
+  ansible.builtin.assert:
+    that:
+    - (recovery_controller_deployment.stdout | from_json).metadata.namespace == 'platform'
+    - (recovery_controller_deployment.stdout | from_json).spec.template.spec.serviceAccountName == 'recovery-controller'
+    fail_msg: Controller identity must match platform/recovery-controller; reconcile IAM and RBAC before migrating it.
+- name: Read deployed controller mode without exposing credentials
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - --request-timeout=10s
+    - -n
+    - platform
+    - get
+    - configmap
+    - recovery-controller-config
+    - -o
+    - json
+  register: recovery_controller_configmap
+  changed_when: false
+- name: Report deployment identity and configured mode without claiming end-to-end readiness
   ansible.builtin.debug:
     msg:
+      namespace: platform
+      service_account: '{{ (recovery_controller_deployment.stdout | from_json).spec.template.spec.serviceAccountName }}'
       desired_replicas: '{{ (recovery_controller_deployment.stdout | from_json).spec.replicas }}'
-      execution_enabled: false
-      note: 'Foundation only. Kafka, DynamoDB fencing and scheduler adapters are not implemented.'
+      mode: '{{ ((recovery_controller_configmap.stdout | from_json).data["config.json"] | from_json).mode }}'
+      execution_enabled: '{{ ((recovery_controller_configmap.stdout | from_json).data["config.json"] | from_json).execution_enabled }}'
+      note: Configured state only. Verify rollout, leader, dependencies and actual recovery separately.
