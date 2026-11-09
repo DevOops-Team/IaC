@@ -9,3 +9,12 @@ kube_proxy_strict_arp: true
 kube_service_addresses: 10.234.0.0/18
 kube_pods_subnet: 10.234.64.0/18
 kubeconfig_localhost: true
+
+# Same reservation as inventory/onprem: control plane and three ingesters share a 10GB node,
+# so kubelet needs an eviction baseline (review of PR #7).
+kube_reserved: true
+kube_memory_reserved: 512Mi
+kube_cpu_reserved: 300m
+system_reserved: true
+system_memory_reserved: 512Mi
+system_cpu_reserved: 300m
