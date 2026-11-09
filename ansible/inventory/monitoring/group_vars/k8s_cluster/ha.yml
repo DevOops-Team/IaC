@@ -1,0 +1,21 @@
+---
+kube_vip_enabled: true
+kube_vip_controlplane_enabled: true
+kube_vip_services_enabled: true
+kube_vip_arp_enabled: true
+kube_vip_leader_election_enabled: true
+kube_vip_address: 172.30.0.30
+kube_vip_interface: eth0
+kube_vip_services_interface: eth0
+
+# One service leader advertises the shared 172.30.0.35 IP.
+# Set kube-vip.io/loadbalancerIPs on each Service and use distinct ports.
+kube_vip_enableServicesElection: false
+
+loadbalancer_apiserver:
+  address: "{{ kube_vip_address }}"
+  port: 6443
+supplementary_addresses_in_ssl_keys:
+  - "{{ kube_vip_address }}"
+
+etcd_deployment_type: host
