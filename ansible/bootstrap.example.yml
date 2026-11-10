@@ -1,7 +1,7 @@
 bootstrap_config_confirmed: false
 manager_context: YOUR_ONPREM_CONTEXT
-gitops_repo_url: https://github.com/DevOops-Team/K8s.git
-gitops_root_dir: /absolute/path/gpu-k8s/argocd/bootstrap/onprem
+gitops_repo_url: https://github.com/DevOops-Team/Gitops.git
+gitops_root_dir: /absolute/path/Gitops/bootstrap/onprem
 edge_domain: devoops.site
 frontend_namespace: platform
 frontend_service_name: frontend
