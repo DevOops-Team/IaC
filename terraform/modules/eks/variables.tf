@@ -82,13 +82,13 @@ variable "cpu_disk_size" {
 }
 
 variable "addon_versions" {
-  description = "Pinned EKS add-on versions compatible with Kubernetes 1.37."
+  description = "Pinned EKS add-on versions compatible with Kubernetes 1.35."
   type        = map(string)
 
   default = {
     vpc-cni                = "v1.23.2-eksbuild.8"
     coredns                = "v1.14.7-eksbuild.28"
-    kube-proxy             = "v1.37.0-eksbuild.34"
+    kube-proxy             = "v1.35.3-eksbuild.69"
     eks-pod-identity-agent = "v1.4.1-eksbuild.3"
   }
 }

@@ -55,6 +55,17 @@ resource "aws_iam_role_policy" "relocator" {
         Resource = "${local.bucket_arn}/code/*/jobset.json"
       },
       {
+        Sid      = "DescribeWorkerInstances"
+        Effect   = "Allow"
+        Action   = "ec2:DescribeInstances"
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = local.region
+          }
+        }
+      },
+      {
         Sid      = "DiscoverWorkerCluster"
         Effect   = "Allow"
         Action   = "eks:DescribeCluster"
