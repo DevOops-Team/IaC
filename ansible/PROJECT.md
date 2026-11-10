@@ -39,9 +39,9 @@ Argo UI/API는 우선 `kubectl --context CONTEXT -n argocd port-forward svc/argo
 
 ## 3. GitHub·이미지·클러스터 등록
 
-형제 gpu-k8s 폴더는 별도 저장소(https://github.com/DevOops-Team/K8s.git)입니다. 해당 저장소에서 configure.py로 이미지·ACME 이메일 등 실제 입력을 설정하고 검증한 뒤 push합니다. CI는 gpu-k8s의 이미지 digest만 갱신하도록 연결합니다.
+형제 Gitops 폴더는 별도 저장소(https://github.com/DevOops-Team/Gitops.git)입니다 (ADR-21: 매니페스트는 Gitops, 컨트롤러 코드는 K8s). 해당 저장소에서 configure.py로 이미지·ACME 이메일 등 실제 입력을 설정하고 검증한 뒤 push합니다. CI는 Gitops의 이미지 digest만 갱신하도록 연결합니다.
 Argo CD에 비공개 repo 읽기 자격증명과 EKS 3개를 eks-a/eks-b/eks-c 이름으로 등록합니다. CLI 등록은 별도 관리 환경에서 수행하며 토큰·키는 Git에 넣지 않습니다. Argo CD cluster credential과 MultiKueue 전용 kubeconfig는 별도입니다.
-bootstrap.local.yml의 gitops_repo_url과 gitops_root_dir(실행 머신의 gpu-k8s/argocd/bootstrap/onprem 절대 경로)를 맞춥니다. 부모 Git 저장소의 origin을 자동 사용하지 않습니다.
+bootstrap.local.yml의 gitops_repo_url과 gitops_root_dir(실행 머신의 Gitops/bootstrap/onprem 절대 경로)를 맞춥니다. 부모 Git 저장소의 origin을 자동 사용하지 않습니다.
 
 ## 4. Secret·root 등록
 
@@ -53,12 +53,12 @@ bootstrap.local.yml의 gitops_repo_url과 gitops_root_dir(실행 머신의 gpu-k
 ```
 
 EKS registry와 MultiKueue credential은 별도 playbooks/eks/seed-registry.yml 및 playbooks/onprem/register-worker-credential.yml에서 EKS별로 등록합니다. 해당 인증 파일은 CA·token 또는 내장 인증서가 있어야 하고 exec/auth-provider·외부 파일 의존성을 거부합니다. 유효기간·갱신은 별도 관리합니다.
-부트스트랩은 Secret 등록을 위해 없는 namespace만 생성하며, 이후 namespace의 원하는 상태는 gpu-k8s가 관리합니다. 자동으로 Cloudflare token을 추정하거나 빈 값을 저장하지 않습니다.
+부트스트랩은 Secret 등록을 위해 없는 namespace만 생성하며, 이후 namespace의 원하는 상태는 Gitops 레포가 관리합니다. 자동으로 Cloudflare token을 추정하거나 빈 값을 저장하지 않습니다.
 site.yml은 MAP 확인 → Argo 설치 → Secret → root 등록을 묶습니다. 모든 실제 입력·접근 권한이 준비된 후에만 사용합니다. Cloudflare 외부 공개는 별도 단계입니다.
 
 ## 5. GitOps sync와 Cloudflare
 
-gpu-k8s README의 최초 sync 순서에 따라 foundation → Traefik/cert-manager → 앱 → 웹 인증서 순서로 진행합니다. Kueue/JobSet과 MAP 정책·디스패처는 스케줄링 파트에서 설치하고 worker 큐·원격 Secret·매니저 연결 순서로 진행합니다.
+Gitops의 sync-wave 순서(foundation → Traefik/cert-manager → ClusterIssuer → frontend·backend와 인증서)로 진행합니다. Kueue/JobSet과 MAP 정책·디스패처는 스케줄링 파트에서 설치하고 worker 큐·원격 Secret·매니저 연결 순서로 진행합니다.
 frontend-tls가 production Ready이고 frontend endpoint가 준비된 후 공인 IP → pfSense → Traefik HTTPS를 외부에서 검증합니다. Cloudflare zone·edge_public_ip와 CLOUDFLARE_DNS_API_TOKEN을 공급하고 edge_dns_confirmed를 true로 설정합니다.
 
 ```bash
