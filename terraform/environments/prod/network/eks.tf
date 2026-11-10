@@ -6,7 +6,7 @@ module "eks_a" {
   source = "../../../modules/eks"
 
   cluster_name       = "${local.name_prefix}-eks-a"
-  kubernetes_version = "1.37"
+  kubernetes_version = "1.35"
 
   project_name = var.project_name
   environment  = var.environment

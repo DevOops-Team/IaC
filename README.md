@@ -44,6 +44,38 @@ terraform validate
 terraform plan -var-file="terraform.local.tfvars"
 ```
 
+## EKS A GPU 노드 설정
+
+AWS 기반은 `terraform/environments/prod/network`에서 관리합니다. Karpenter 1.15.1 컨트롤러는 기존 시스템 CPU 노드에 배치합니다. GPU NodePool은 프라이빗 서브넷에서 `g4dn.xlarge` Spot을 필요할 때 생성하며, 한도는 GPU 2장과 8 vCPU입니다. EC2 중단 이벤트는 EventBridge에서 SQS로 전달합니다.
+
+AWS 기반 배포 후, **프라이빗 EKS API에 닿는 운영 환경**에서 아래 순서로 설치합니다. Terraform을 실행한 PC와 설치 환경이 다르면 `terraform output -json karpenter_gpu` 결과를 설치 환경으로 전달합니다.
+
+```powershell
+# prod/network에서 실행. 다른 운영 환경으로 전달할 때는 아래 JSON을 저장해 읽습니다.
+$raw = terraform output -json karpenter_gpu
+if ($LASTEXITCODE -ne 0) { throw 'Karpenter output unavailable' }
+$gpu = ($raw -join "`n") | ConvertFrom-Json
+$context = $gpu.cluster_name
+aws eks update-kubeconfig --profile devoops --region us-east-2 --name $gpu.cluster_name --alias $context
+if ($LASTEXITCODE -ne 0) { throw 'EKS kubeconfig unavailable' }
+kubectl --context $context get --raw=/readyz
+if ($LASTEXITCODE -ne 0) { throw 'Private EKS API unavailable' }
+
+$gpu.controller_values | helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --kube-context $context --namespace $gpu.namespace --version $gpu.karpenter_version --values - --wait
+if ($LASTEXITCODE -ne 0) { throw 'Karpenter installation failed' }
+
+$gpu.device_plugin_values | helm upgrade --install nvidia-device-plugin nvidia-device-plugin --repo https://nvidia.github.io/k8s-device-plugin --kube-context $context --namespace $gpu.namespace --version $gpu.device_plugin_version --values - --wait
+if ($LASTEXITCODE -ne 0) { throw 'NVIDIA device plugin installation failed' }
+
+$gpu.manifests | kubectl --context $context apply -f -
+if ($LASTEXITCODE -ne 0) { throw 'GPU resource configuration failed' }
+kubectl --context $context wait --for=condition=Ready ec2nodeclass/gpu-training nodepool/gpu-training --timeout=180s
+```
+
+- 학습 Pod는 `nvidia.com/gpu`를 요청하고 `nvidia.com/gpu=true:NoSchedule` taint를 toleration으로 허용해야 합니다. Kueue ResourceFlavor의 `node-role.devoops.site/gpu: "true"`와 NodePool 라벨을 일치시켰습니다.
+- 첫 복구 테스트는 GPU 1장을 요청합니다. Kueue와 Ansible 사전 점검의 실험용 최소 용량은 실제 배치에 맞춰 설정합니다.
+- 확인은 학습 Pod 제출 후 NodeClaim 생성, 노드 Ready 및 `nvidia.com/gpu` 할당을 보고 진행합니다. 테스트를 끝낸 뒤 GPU 자원 정리를 확인한 후 AWS 기반을 삭제합니다. EKS를 내리기 전에 NodePool을 제거하고 GPU NodeClaim과 EC2 종료를 확인합니다.
+
 ## 장애 감지·서비스 복구
 
 ADR-11에 따라 개인 PC에서 `ansible/playbooks/recovery/`, `ansible/scripts/recovery/`를 필요할 때 수동 실행합니다. 전용 VM·상시 복구 timer는 사용하지 않습니다. 기본은 관찰 전용이며 설치/부트스트랩 site.yml과 분리합니다. [RECOVERY.md](ansible/RECOVERY.md)를 확인합니다.
