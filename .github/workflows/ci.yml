@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        dir:
+          - terraform/environments/prod/bootstrap
+          - terraform/environments/prod/data
+          - terraform/environments/prod/identity
+          - terraform/environments/prod/network
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.17.0
+      - name: fmt
+        run: terraform fmt -check -recursive
+        working-directory: ${{ matrix.dir }}
+      - name: init (backend 없이)
+        run: terraform init -backend=false -input=false
+        working-directory: ${{ matrix.dir }}
+      - name: validate
+        run: terraform validate
+        working-directory: ${{ matrix.dir }}
+
+  python-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test deps
+        run: pip install pyyaml
+      - name: cloudflare DNS plan
+        run: python -m unittest tests/test_cloudflare_dns.py
+      - name: recovery watcher
+        run: python -m unittest discover -s tests
+        working-directory: ansible/scripts/recovery
