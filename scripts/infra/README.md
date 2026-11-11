@@ -6,6 +6,8 @@
 
 ## 범위
 
+현재 사용자 결정: **학습 GPU 최대 2장, 예비 GPU 0장**. Karpenter 상한은 기존 2장 유지. `config.example.json`의 `spareEnabled=false`와 `workerGpuQuotas={train-cq:2,recovery-cq:0}`는 스크립트의 기대/검증값이며 Kubernetes 큐를 직접 변경하지 않는다. 실제 큐 quota와 placeholder replicas=0은 담당자의 Gitops EKS overlay에 반영해야 한다. 예비 모드가 꺼져 있으면 ON은 예비 Pod를 기다리지 않으며, OFF도 예비 quiesce hook을 요구하지 않는다. 기존 예비 Deployment가 replicas>0이면 중단한다.
+
 | 명령 | 동작 |
 | --- | --- |
 | `status` | AWS 계정, EKS 상태, CPU 희망 수, GPU EC2 수, 관리 클러스터의 작업 기록/잠금 조회 |
@@ -32,7 +34,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/infra/infra.ps1 stat
 | --- | --- |
 | `workerBootstrapScript` | master1에 있는 실행 가능한 파일의 절대 경로. EKS에 Kueue·JobSet·워커 큐/리소스 설정을 복원하는, 버전 관리된 멱등 스크립트 |
 | `dispatcherBarrierScript` | eks-a 펜싱이 모든 디스패처의 진행 중 루프에 반영됐음을 확인하는 담당자 제공 절차. 단순 sleep/고정 ACK로 대체 금지 |
-| `workerQuiesceScript` | 담당자가 준비할 Git replicas=0 커밋 → Argo sync → 예비 Pod 0개 확인 절차. 직접 kubectl scale 사용 금지. ON은 Git replicas=1 반영/동기화 및 rollout 확인 |
+| `workerQuiesceScript` | 추후 spareEnabled=true일 때만 필요한 Git replicas=0 커밋 → Argo sync → 예비 Pod 0개 확인 절차. 현재 예비 0 모드에서는 불필요. 직접 kubectl scale 사용 금지 |
 | `relocatorSecretNamespace` / `relocatorSecretContractConfirmed` | 담당자 최종 확인: kueue-system / true. 기존 config.local.json이 platform이면 함께 수정 필요 |
 | `workerDeployments` | 복원 후 확인할 `namespace/deployment` 목록. Kueue·JobSet 컨트롤러 포함 |
 | `workerClusterQueues`, `workerLocalQueues` | train-cq/recovery-cq 및 training의 queue-heavy/light/recovery. 각각 `Active=True` 확인 후 펜싱 해제 |

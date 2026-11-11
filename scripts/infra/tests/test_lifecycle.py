@@ -127,7 +127,7 @@ class ShutdownGuards(unittest.TestCase):
         with patch.object(cluster, "manager", return_value=client):
             with patch.object(cluster, "worker_registration"), patch.object(cluster, "manager_activity"):
                 with self.assertRaisesRegex(RuntimeError, "workerBootstrapScript"):
-                    cluster.dispatch({"operation": "preflight", "config": {"stateName": "state"}})
+                    cluster.dispatch({"operation": "preflight", "config": {"stateName": "state", "spareEnabled": False}})
         self.assertFalse(client.writes)
 
     def test_dispatcher_ack_must_identify_this_fence(self):
@@ -143,13 +143,31 @@ class ShutdownGuards(unittest.TestCase):
     def test_failed_spare_quiesce_never_deletes_gpu_pool(self):
         worker = FakeCluster()
         worker.args = ["kubectl", "--kubeconfig", "/dev/shm/config"]
-        config = {"stateName": "state", "clusterName": "eks-a", "workerAlias": "eks-a", "workerQuiesceScript": "/tmp/stop-spare"}
+        config = {"stateName": "state", "clusterName": "eks-a", "workerAlias": "eks-a", "spareEnabled": True, "workerQuiesceScript": "/tmp/stop-spare"}
         client = FakeCluster({("configmap", "state"): {"data": {"owner": "first"}}})
         with patch.object(cluster, "check_manager_idle"), patch.object(cluster, "check_worker_idle"), patch.object(cluster.subprocess, "run") as call:
             call.return_value.returncode = 1
             with self.assertRaisesRegex(RuntimeError, "quiesce did not complete"):
                 cluster.worker_operation(worker, config, {"operation": "worker_cleanup", "token": "first"}, client)
         self.assertFalse(worker.writes)
+
+    def test_disabled_spare_rejects_gitops_deployment_with_positive_replicas(self):
+        client = FakeCluster({("deployment", "spare-placeholder"): {"spec": {"replicas": 1}}})
+        with self.assertRaisesRegex(RuntimeError, "Spare GPU is disabled"):
+            cluster.assert_spare_disabled(client, {"trainingNamespace": "training"})
+        self.assertFalse(client.writes)
+
+    def test_disabled_spare_accepts_zero_replicas(self):
+        client = FakeCluster({("deployment", "spare-placeholder"): {"spec": {"replicas": 0}}})
+        cluster.assert_spare_disabled(client, {"trainingNamespace": "training"})
+        self.assertFalse(client.writes)
+
+    def test_old_four_gpu_training_quota_is_rejected(self):
+        queue = {"spec": {"resourceGroups": [{"flavors": [{"resources": [
+            {"name": "nvidia.com/gpu", "nominalQuota": "4"}]}]}]}}
+        with self.assertRaisesRegex(RuntimeError, "capacity contract"):
+            cluster.check_gpu_quota(queue, 2)
+        cluster.check_gpu_quota(queue, 4)
 
 
 if __name__ == "__main__":

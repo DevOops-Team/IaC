@@ -251,6 +251,21 @@ def check_worker_idle(worker, config, allow_placeholder=False):
         raise RuntimeError("Remove worker LoadBalancer Services/Ingress through their owner before teardown.")
 
 
+def assert_spare_disabled(worker, config):
+    placeholder = worker.get("deployment", "spare-placeholder", config["trainingNamespace"], optional=True)
+    if placeholder and placeholder.get("spec", {}).get("replicas", 1) != 0:
+        raise RuntimeError("Spare GPU is disabled; set the GitOps placeholder replicas to zero before proceeding.")
+
+
+def check_gpu_quota(queue, expected):
+    gpu_quota = sum(int(resource.get("nominalQuota", "0"))
+                    for group in queue.get("spec", {}).get("resourceGroups", [])
+                    for flavor in group.get("flavors", []) for resource in flavor.get("resources", [])
+                    if resource.get("name") == "nvidia.com/gpu")
+    if gpu_quota != expected:
+        raise RuntimeError("Worker GPU quota differs from the reviewed lifecycle capacity contract.")
+
+
 def worker_operation(worker, config, request, client):
     operation = request["operation"]
     helm = str(Path.home() / ".local/bin/helm")
@@ -259,20 +274,21 @@ def worker_operation(worker, config, request, client):
     if owner != token:
         raise RuntimeError("Lifecycle lock ownership changed.")
     if operation == "worker_check":
-        check_worker_idle(worker, config, allow_placeholder=True)
+        check_worker_idle(worker, config, allow_placeholder=config["spareEnabled"])
+        if not config["spareEnabled"]:
+            assert_spare_disabled(worker, config)
         return {"idle": True}
     if operation == "worker_cleanup":
         check_manager_idle(client, config)
-        check_worker_idle(worker, config, allow_placeholder=True)
+        check_worker_idle(worker, config, allow_placeholder=config["spareEnabled"])
         # Owner-supplied procedure also prevents Argo from recreating the spare.
-        env = dict(os.environ, KUBECONFIG=worker.args[2], EKS_CONTEXT=config["clusterName"], WORKER_ALIAS=config["workerAlias"])
-        result = subprocess.run([config["workerQuiesceScript"]], env=env, capture_output=True, text=True, timeout=600)
-        acknowledgement = json.loads(result.stdout) if not result.returncode else {}
-        if result.returncode or acknowledgement.get("placeholderQuiesced") is not True or acknowledgement != {"worker": config["workerAlias"], "placeholderQuiesced": True}:
-            raise RuntimeError("Worker spare/Argo quiesce did not complete; EKS is retained.")
-        placeholder = worker.get("deployment", "spare-placeholder", config["trainingNamespace"], optional=True)
-        if placeholder and placeholder.get("spec", {}).get("replicas", 1) != 0:
-            raise RuntimeError("Spare placeholder can still create GPU demand.")
+        if config["spareEnabled"]:
+            env = dict(os.environ, KUBECONFIG=worker.args[2], EKS_CONTEXT=config["clusterName"], WORKER_ALIAS=config["workerAlias"])
+            result = subprocess.run([config["workerQuiesceScript"]], env=env, capture_output=True, text=True, timeout=600)
+            acknowledgement = json.loads(result.stdout) if not result.returncode else {}
+            if result.returncode or acknowledgement.get("placeholderQuiesced") is not True or acknowledgement != {"worker": config["workerAlias"], "placeholderQuiesced": True}:
+                raise RuntimeError("Worker spare/Argo quiesce did not complete; EKS is retained.")
+        assert_spare_disabled(worker, config)
         check_worker_idle(worker, config)
         # Hold all provisioning in the selected pool while its NodeClaims terminate.
         pool = worker.get("nodepool", config["gpuNodePool"], optional=True)
@@ -315,12 +331,16 @@ def worker_operation(worker, config, request, client):
         info = worker.get("configmap", "devoops-cluster-info", config["trainingNamespace"])
         if info.get("data", {}).get("CLUSTER_NAME") != config["workerAlias"]:
             raise RuntimeError("Worker cluster-info does not identify eks-a.")
-        placeholder = worker.get("deployment", "spare-placeholder", config["trainingNamespace"])
-        if placeholder.get("spec", {}).get("replicas", 1) != 1:
-            raise RuntimeError("Spare placeholder was not restored by the reviewed EKS overlay.")
-        worker.kubectl("-n", config["trainingNamespace"], "rollout", "status", "deployment/spare-placeholder", "--timeout=600s")
+        if config["spareEnabled"]:
+            placeholder = worker.get("deployment", "spare-placeholder", config["trainingNamespace"])
+            if placeholder.get("spec", {}).get("replicas", 1) != 1:
+                raise RuntimeError("Spare placeholder was not restored by the reviewed EKS overlay.")
+            worker.kubectl("-n", config["trainingNamespace"], "rollout", "status", "deployment/spare-placeholder", "--timeout=600s")
+        else:
+            assert_spare_disabled(worker, config)
         for name in config["workerClusterQueues"]:
             worker.kubectl("wait", "--for=condition=Active", "clusterqueue/" + name, "--timeout=180s")
+            check_gpu_quota(worker.get("clusterqueue", name), config["workerGpuQuotas"][name])
         for queue in config["workerLocalQueues"]:
             ns, name = queue.split("/", 1)
             worker.kubectl("-n", ns, "wait", "--for=condition=Active", "localqueue/" + name, "--timeout=180s")
@@ -384,7 +404,12 @@ def dispatch(request):
         record = lifecycle_record(client, config)
         if record and json.loads(record.get("data", {}).get("journal", "{}")).get("queuePolicies"):
             raise RuntimeError("Legacy queue hold journal exists; review and restore it before migrating to worker fencing.")
-        for key in ("workerBootstrapScript", "workerQuiesceScript", "dispatcherBarrierScript"):
+        if type(config.get("spareEnabled")) is not bool:
+            raise RuntimeError("Set spareEnabled explicitly: current contract is false (training 2, spare 0).")
+        hooks = ["workerBootstrapScript", "dispatcherBarrierScript"]
+        if config["spareEnabled"]:
+            hooks.append("workerQuiesceScript")
+        for key in hooks:
             path = Path(config.get(key, ""))
             if not path.is_file() or not os.access(path, os.X_OK):
                 raise RuntimeError("Scheduling owner must supply an executable " + key + ".")
@@ -394,6 +419,9 @@ def dispatch(request):
             raise RuntimeError("Configure the worker Kueue/JobSet Deployment readiness checks.")
         if not config.get("workerClusterQueues") or not config.get("workerLocalQueues"):
             raise RuntimeError("Configure worker ClusterQueue and namespace/LocalQueue readiness checks.")
+        quotas = config.get("workerGpuQuotas", {})
+        if set(quotas) != set(config["workerClusterQueues"]) or any(type(value) is not int or value < 0 for value in quotas.values()):
+            raise RuntimeError("Configure a nonnegative whole-GPU quota for every worker ClusterQueue.")
         return {"ready": True}
     if operation != "lock":
         record = lifecycle_record(client, config)
