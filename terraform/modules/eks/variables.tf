@@ -35,7 +35,7 @@ variable "environment" {
 variable "kubernetes_version" {
   description = "Kubernetes version for EKS."
   type        = string
-  default     = "1.37"
+  default     = "1.35"
 }
 
 variable "vpc_id" {
@@ -79,6 +79,53 @@ variable "cpu_disk_size" {
   description = "CPU node root disk size in GiB."
   type        = number
   default     = 30
+}
+
+variable "gpu_instance_types" {
+  description = "One-T4 instance types eligible for the fixed GPU Spot node groups."
+  type        = list(string)
+  default     = ["g4dn.xlarge", "g4dn.2xlarge"]
+
+  validation {
+    condition = (
+      length(var.gpu_instance_types) > 0 &&
+      length(distinct(var.gpu_instance_types)) == length(var.gpu_instance_types) &&
+      alltrue([for instance_type in var.gpu_instance_types : contains(["g4dn.xlarge", "g4dn.2xlarge"], instance_type)])
+    )
+    error_message = "Use a nonempty, unique list drawn from g4dn.xlarge and g4dn.2xlarge (one GPU each)."
+  }
+}
+
+variable "gpu_training_node_count" {
+  type        = number
+  description = "Fixed desired/minimum/maximum size of the training Spot group."
+  default     = 4
+  validation {
+    condition     = var.gpu_training_node_count >= 0 && floor(var.gpu_training_node_count) == var.gpu_training_node_count
+    error_message = "Use a nonnegative whole number; zero omits the training GPU group."
+  }
+}
+
+variable "gpu_spare_node_count" {
+  type        = number
+  description = "Fixed desired/minimum/maximum size of the spare Spot group."
+  default     = 1
+  validation {
+    condition     = var.gpu_spare_node_count >= 0 && floor(var.gpu_spare_node_count) == var.gpu_spare_node_count
+    error_message = "Use a nonnegative whole number; zero omits the spare GPU group."
+  }
+}
+
+variable "gpu_disk_size" {
+  description = "Encrypted ephemeral GPU node root disk in GiB; application data belongs in S3."
+  type        = number
+  default     = 20
+}
+
+variable "gpu_ami_release_version" {
+  description = "Pinned EKS 1.35 AL2023 NVIDIA AMI release (AWS public SSM, us-east-2)."
+  type        = string
+  default     = "1.35.9-20261107"
 }
 
 variable "addon_versions" {

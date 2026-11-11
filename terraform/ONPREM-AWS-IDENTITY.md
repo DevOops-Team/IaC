@@ -61,8 +61,8 @@ only into their own workload, read-only and with limited Secret/RBAC access.
 | --- | --- | --- | --- |
 | Backend | web | onprem-backend | S3 code/datasets uploads; fencing PutItem/GetItem |
 | Recovery controller | recovery | onprem-recovery | fencing GetItem/UpdateItem |
-| Relocation executor | scheduler | onprem-relocator | fencing GetItem/UpdateItem; S3 code/*/jobset.json read; DescribeCluster eks-a |
-| MultiKueue | kueue-system | onprem-multikueue | DescribeCluster eks-a |
+| Relocation executor | scheduler | onprem-relocator | fencing GetItem/UpdateItem; S3 code/*/jobset.json read; DescribeCluster eks-a/b/c |
+| MultiKueue | kueue-system | onprem-multikueue | DescribeCluster eks-a/b/c |
 
 Exact Deployment and ServiceAccount names are not yet confirmed. No progress or
 events table is assumed; no guessed EC2 action is allowed. Backend must send
