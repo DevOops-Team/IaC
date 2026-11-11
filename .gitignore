@@ -46,3 +46,6 @@ ansible/environments/**/*.local.yaml
 # Local pfSense connection and topology inputs
 ansible/pfsense-edge.local.yml
 ansible/inventory/pfsense/hosts.local.yml
+
+# Local infrastructure lifecycle settings
+scripts/infra/config.local.json

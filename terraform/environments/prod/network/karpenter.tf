@@ -2,7 +2,7 @@ locals {
   karpenter_namespace       = "kube-system"
   karpenter_service_account = "karpenter"
   karpenter_gpu_nodepool    = "gpu-training"
-  karpenter_gpu_label       = "node-role.devoops.site/gpu"
+  karpenter_gpu_label       = "devoops/gpu"
   karpenter_gpu_taint       = "nvidia.com/gpu"
 
   # EKS 1.35 AL2023 NVIDIA x86_64, release v20261107 in us-east-2.
