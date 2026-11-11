@@ -82,4 +82,6 @@ ADR-11에 따라 개인 PC에서 `ansible/playbooks/recovery/`, `ansible/scripts
 
 ## EKS별 설정
 
+수동 비용 관리 ON/OFF 스크립트와 준비 조건은 [scripts/infra/README.md](scripts/infra/README.md) 참고. 스케줄링 배포 절차 연결 및 통합 검증 전에는 운영 ON/OFF 실행을 중단합니다.
+
 온프레미스 기본 실행과 EKS별 실행을 분리했습니다. `ansible/environments/eks/`의 A/B/C 예시와 `playbooks/eks/`를 사용합니다. AWS 자원은 읽기 전용으로 점검하고 큐 설정은 gpu-k8s의 eks/<alias>가 관리합니다. [EKS 안내](ansible/EKS.md).

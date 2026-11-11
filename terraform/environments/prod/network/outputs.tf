@@ -25,3 +25,11 @@ output "private_subnet_ids" {
     for az, subnet in aws_subnet.private : az => subnet.id
   }
 }
+
+output "lifecycle" {
+  description = "Current AWS identifiers used by the on-premises lifecycle runner."
+  value = {
+    vpn_connection_id = aws_vpn_connection.this.id
+    cluster_name      = module.eks_a.cluster_name
+  }
+}
