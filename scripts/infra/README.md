@@ -32,14 +32,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/infra/infra.ps1 stat
 | --- | --- |
 | `workerBootstrapScript` | master1에 있는 실행 가능한 파일의 절대 경로. EKS에 Kueue·JobSet·워커 큐/리소스 설정을 복원하는, 버전 관리된 멱등 스크립트 |
 | `dispatcherBarrierScript` | eks-a 펜싱이 모든 디스패처의 진행 중 루프에 반영됐음을 확인하는 담당자 제공 절차. 단순 sleep/고정 ACK로 대체 금지 |
-| `workerQuiesceScript` | 예비 자리 표시 Deployment 중지 및 Argo 재생성 차단 절차. 완료 후 예비 Pod 부재와 replicas=0 확인 필요 |
-| `relocatorSecretNamespace` / `relocatorSecretContractConfirmed` | 전달받은 위치는 platform. 현재 K8s 코드가 kueue-system을 읽는 불일치 해소 후 확인값 설정 |
+| `workerQuiesceScript` | 담당자가 준비할 Git replicas=0 커밋 → Argo sync → 예비 Pod 0개 확인 절차. 직접 kubectl scale 사용 금지. ON은 Git replicas=1 반영/동기화 및 rollout 확인 |
+| `relocatorSecretNamespace` / `relocatorSecretContractConfirmed` | 담당자 최종 확인: kueue-system / true. 기존 config.local.json이 platform이면 함께 수정 필요 |
 | `workerDeployments` | 복원 후 확인할 `namespace/deployment` 목록. Kueue·JobSet 컨트롤러 포함 |
 | `workerClusterQueues`, `workerLocalQueues` | train-cq/recovery-cq 및 training의 queue-heavy/light/recovery. 각각 `Active=True` 확인 후 펜싱 해제 |
 
 bootstrap/quiesce 스크립트에는 일시적인 워커 `KUBECONFIG`와 `EKS_CONTEXT`를 제공한다. quiesce에는 `WORKER_ALIAS`도 제공하며 JSON `{"worker":"eks-a","placeholderQuiesced":true}`로 완료를 반환한다. 반드시 지정 워커만 사용하고 관리 클러스터 기본 kubeconfig를 수정하지 않는다. 자격 증명을 출력/보관하지 않는다. 스크립트 제한 10분, 각 Helm 대기 제한 8분. 실패 시 펜싱 유지 후 원인 해결/재실행.
 
 barrier에는 관리 `KUBECONFIG`, `KUBE_CONTEXT`, `WORKER_ALIAS`, `FENCE_TOKEN`을 제공한다. **펜싱 반영 및 이전 루프 종료를 실제 확인한 뒤** JSON `{"worker":"eks-a","fenceToken":"환경 변수의 FENCE_TOKEN 값","inFlightDrained":true}`로 응답한다. 이것은 신규 연동 계약이며 현재 K8s 코드에 ACK 구현은 없다. 절차가 없으면 사전 중단한다.
+
+담당자 후속 답변: 임시 수동 절차는 펜싱 → 30초 대기 → 작업/지명/예약/재배치 재검사. 영구 방식은 디스패처가 펜싱을 본 루프를 완료한 뒤 `devoops/fenced-ack=<시각>` 기록 예정. 현재 자동 스크립트에 30초를 ACK로 간주하는 우회는 넣지 않았다. ACK가 구현되면 해당 펜싱 이후의 새 ACK인지 확인하는 adapter를 연결한다. 이전 실행의 ACK 재사용과 장비 시계 차이를 피하려면 fence token도 함께 확인하는 방식 권장.
 
 관리 클러스터에는 `MultiKueueCluster/eks-a`가 있어야 한다. v0.20의 `spec.clusterSource.kubeConfig`(이전 spec.kubeConfig도 지원)가 `locationType: Secret`, `location: eks-a-kubeconfig`여야 한다. MultiKueue 토큰은 기존 `ansible/roles/multikueue-remote/files/rbac.yaml`, relocator 토큰은 K8s 저장소 `scheduling/controllers/deploy/worker/relocator-rbac.yaml`을 따른다. MultiKueue/dispatcher에는 nodes·pods 읽기만 추가하며 노드 수정은 relocator에 분리한다. 각 토큰으로 실제 API 조회 성공 후 관리 Secret 두 개를 교체한다.
 

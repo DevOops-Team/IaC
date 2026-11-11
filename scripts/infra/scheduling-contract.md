@@ -13,7 +13,7 @@ OFF 거부 조건은 관리 training namespace에서 다음 중 하나가 존재
 - 미완료 Workload의 `devoops/reserved-cluster == eks-a`
 - 처리 중 RelocationRequest가 eks-a를 원본/대상/기존 복사본 보유 클러스터로 참조. jobRef가 가리키는 JobSet의 Workload도 확인. 대상을 아직 판단할 수 없거나 향후 선택할 가능성이 있으면 보수적으로 중단
 
-확인 → 펜싱 → 디스패처의 이전 루프 종료 확인 → 활동 재확인 → 워커 정리 순서. 몇 초 기다린 뒤 아무것도 없다는 이유만으로 이전 디스패처 루프가 끝났다고 간주하지 않는다. dispatcherBarrierScript의 실제 확인 절차를 담당자와 추가 합의해야 한다.
+확인 → 펜싱 → 디스패처의 이전 루프 종료 확인 → 활동 재확인 → 워커 정리 순서. 담당자의 임시 수동 절차는 펜싱 후 30초 대기와 네 가지 거부 조건 재검사. 이는 루프가 오래 지연된 경우까지 완료를 보장하는 ACK와 구분한다. 자동 OFF는 ACK 구현 및 adapter 연결 전까지 중단 유지.
 
 ## ON 설치 순서
 
@@ -35,14 +35,14 @@ ON은 ConfigMap의 클러스터 이름, 예비 Deployment 복원/rollout, 컨트
 
 | 항목 | 현재 발견한 상태 / 필요한 결정 |
 | --- | --- |
-| 펜싱 경쟁 방지 | 디스패처는 루프 초반에 펜싱 라벨을 읽는다. 이미 읽은 옛 상태로 진행 중인 루프까지 종료됐다는 ACK/장벽은 현재 코드에서 확인 못 함. 임의 고정 sleep 대신 담당자 절차 필요 |
-| 예비 Pod 중지 | placeholder는 GPU 1개를 요청하는 Deployment. 학습으로 오인하지 않도록 소유 UID를 검증해 사전 점검에서만 제외. 실제 OFF는 Argo 재생성 차단·replicas=0·Pod 부재 확인 후 진행. quiesce 절차 필요 |
-| relocator Secret 위치 | 전달 답변과 RBAC 주석은 `platform/eks-a-relocator-kubeconfig`. 현재 controllers/kube.py는 K.KUEUE_NS(kueue-system)에서 읽고 controllers.yaml RBAC도 그 namespace의 kind 이름들로 제한. EKS에서 reader·namespace·resourceNames를 함께 맞춰야 함. 확정 전 preflight 중단 |
+| 펜싱 경쟁 방지 | 담당자가 `devoops/fenced-ack=<시각>` 구현 예정. fenced를 본 루프를 끝낸 뒤 ACK 기록, ACK가 펜싱 적용 시각 이후인지 확인하는 계획. 현재 ACK는 없으며 자동 OFF 미연결. 현재 fence token도 함께 대조하면 지난 실행 ACK/시계 차이 문제를 줄일 수 있음 |
+| 예비 Pod 중지·복원 | 담당자가 Gitops eks-a overlay에 replicas 패치 추가 예정. OFF: Git replicas=0 커밋 → Argo sync → spare-placeholder Pod 0개 확인. ON: 기반 복원 후 Git replicas=1 커밋 → Pod Running/rollout 확인 → 펜싱 해제. kubectl scale/delete는 selfHeal이 되돌리므로 사용하지 않음. 아직 실행 가능한 hook은 미제공 |
+| relocator Secret 위치 | 담당자 최종 확인은 `kueue-system/eks-a-relocator-kubeconfig`. 기존 platform 답변 정정. 설정 예시에 반영 완료. EKS overlay의 controller Role resourceNames에는 eks-a 이름을 포함해야 함 |
 | GPU 라벨 | IaC의 기존 node-role.devoops.site/gpu를 담당자 기준 devoops/gpu로 변경. 코드 변경만 진행하며 기존 NodePool/노드에 실제 적용하지 않음 |
 | 4+1과 할당량 | base 큐는 train 4 + recovery 1. 현재 IaC GPU NodePool은 최대 2장, 일반 NodePool 하나이며 devoops/spare=true용 별도 예비 노드 구성도 아직 없음. EKS overlay의 실험 용량/예비 전략을 맞춰야 함. 5장으로 임의 확대하지 않음 |
 | dispatcher 읽기 권한 | MultiKueue 토큰으로 nodes/pods 용량을 조회하므로 해당 RBAC에 get/list 추가. patch/cordon 같은 노드 수정은 별도 relocator 토큰에만 유지 |
 
-현재 `workerBootstrapScript`, `workerQuiesceScript`, `dispatcherBarrierScript`는 제공되지 않았고 relocator namespace 계약도 미확인이다. 그 상태에서는 AWS·쿠버 리소스 변경 전에 중단한다. 이번 변경은 코드/단위 검증이며 ON/OFF 통합 검증·실제 배포 아님.
+현재 `workerBootstrapScript`, `workerQuiesceScript`, `dispatcherBarrierScript`는 미제공이다. namespace는 확정했지만 Git 패치·Argo 동기화·ACK 절차를 실제 hook에 연결하기 전에는 AWS·쿠버 리소스 변경 전에 중단한다. 이번 변경은 코드/단위 검증이며 ON/OFF 통합 검증·실제 배포 아님. 담당자가 구현하고 알려주겠다고 한 상태이며 인프라 쪽에서 dispatcher/overlay를 대신 변경하지 않는다.
 
 ## 소스
 

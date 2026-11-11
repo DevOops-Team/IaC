@@ -388,8 +388,8 @@ def dispatch(request):
             path = Path(config.get(key, ""))
             if not path.is_file() or not os.access(path, os.X_OK):
                 raise RuntimeError("Scheduling owner must supply an executable " + key + ".")
-        if not config.get("relocatorSecretContractConfirmed"):
-            raise RuntimeError("Confirm relocator Secret namespace and controller reader/RBAC before ON/OFF.")
+        if not config.get("relocatorSecretContractConfirmed") or config.get("relocatorSecretNamespace") != "kueue-system":
+            raise RuntimeError("Relocator Secret belongs in kueue-system; update the local configuration to the confirmed contract.")
         if not config["workerDeployments"]:
             raise RuntimeError("Configure the worker Kueue/JobSet Deployment readiness checks.")
         if not config.get("workerClusterQueues") or not config.get("workerLocalQueues"):
