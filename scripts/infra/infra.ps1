@@ -173,7 +173,7 @@ function Sync-Vpn {
         $vpn = Invoke-Aws @('ec2', 'describe-vpn-connections', '--vpn-connection-ids', $outputs.vpn_connection_id)
         $telemetry = @($vpn.VpnConnections[0].VgwTelemetry)
         if ($telemetry.Count -eq 2 -and -not ($telemetry | Where-Object { $_.Status -ne 'UP' -or $_.AcceptedRouteCount -lt 1 })) { return }
-        if ([DateTime]::UtcNow -gt $deadline) { throw 'Both VPN/BGP paths are not ready. Queues remain held.' }
+        if ([DateTime]::UtcNow -gt $deadline) { throw 'Both VPN/BGP paths are not ready. Worker remains fenced.' }
         Write-Host 'Waiting for both VPN tunnels and BGP routes...'
         Start-Sleep -Seconds 10
     } while ($true)
@@ -228,8 +228,8 @@ function Invoke-Lifecycle {
     try {
         $journal = Invoke-Manager lock
         $locked = $true
-        # Preserve an earlier OFF/failed-ON hold. Only undo a hold introduced now.
-        $restoreOnFailure = (-not $journal.queuePolicies -or @($journal.queuePolicies.PSObject.Properties).Count -eq 0)
+        # Preserve an earlier OFF/failed-ON fence. Only undo a fence introduced now.
+        $restoreOnFailure = (-not $journal.fence)
         Invoke-Manager hold | Out-Null
         Invoke-Manager manager_check | Out-Null
         Invoke-Manager checkpoint @{ phase = if ($Action -eq 'on') { 'Starting' } else { 'Stopping' } } | Out-Null
@@ -252,7 +252,7 @@ function Invoke-Lifecycle {
             Invoke-Manager worker_bootstrap -Kubeconfig (New-WorkerKubeconfig $cluster) -Gpu $gpu | Out-Host
             Invoke-Manager release | Out-Null
             Invoke-Manager checkpoint @{ phase = 'Ready'; generation = [string]$cluster.createdAt; cleanedGeneration = '' } | Out-Null
-            Write-Host 'READY. Manager queues were restored to their original admission policies.'
+            Write-Host 'READY. The lifecycle fence for eks-a was removed; shared queues were not changed.'
         } else {
             $cluster = Get-Cluster
             if ($cluster) {
@@ -274,12 +274,12 @@ function Invoke-Lifecycle {
             if (Get-Cluster) { throw 'EKS still exists after teardown.' }
             Wait-GpuTermination
             Invoke-Manager checkpoint @{ phase = 'Off' } | Out-Null
-            Write-Host 'OFF. Data, state and persistent identity stacks are retained. Manager queues remain held.'
+            Write-Host 'OFF. Data, state and persistent identity stacks are retained. eks-a remains fenced.'
         }
     } catch {
         if ($locked) {
             if (-not $disruptiveChangeStarted -and $restoreOnFailure) {
-                try { Invoke-Manager release | Out-Null } catch { Write-Warning 'Could not restore queue policies; inspect the lifecycle journal before retrying.' }
+                try { Invoke-Manager release | Out-Null } catch { Write-Warning 'Could not restore the worker fence; inspect the lifecycle journal before retrying.' }
             }
             try { Invoke-Manager checkpoint @{ phase = if ($Action -eq 'on') { 'StartFailed' } else { 'StopFailed' } } | Out-Null } catch { Write-Warning 'Could not record the failure in the manager journal.' }
         }

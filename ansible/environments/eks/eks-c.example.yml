@@ -11,7 +11,7 @@ eks_min_gpu_nodes: 5
 eks_min_gpu_total: 5
 eks_min_system_nodes: 2
 eks_gpu_node_selector:
-  node-role.devoops.site/gpu: 'true'
+  devoops/gpu: 'true'
 eks_system_node_selector:
   node-role.devoops.site/system: 'true'
 eks_require_monitoring_addon: true

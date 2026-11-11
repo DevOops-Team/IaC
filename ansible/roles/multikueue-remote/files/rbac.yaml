@@ -13,6 +13,11 @@ kind: ClusterRole
 metadata:
   name: multikueue-sa-role
 rules:
+# The dispatcher uses this credential to read capacity; node mutation stays in
+# the separate relocator role.
+- apiGroups: [""]
+  resources: [nodes, pods]
+  verbs: [get, list]
 - apiGroups: [batch]
   resources: [jobs]
   verbs: [create, delete, get, list, watch]

@@ -72,7 +72,7 @@ if ($LASTEXITCODE -ne 0) { throw 'GPU resource configuration failed' }
 kubectl --context $context wait --for=condition=Ready ec2nodeclass/gpu-training nodepool/gpu-training --timeout=180s
 ```
 
-- 학습 Pod는 `nvidia.com/gpu`를 요청하고 `nvidia.com/gpu=true:NoSchedule` taint를 toleration으로 허용해야 합니다. Kueue ResourceFlavor의 `node-role.devoops.site/gpu: "true"`와 NodePool 라벨을 일치시켰습니다.
+- 학습 Pod는 `nvidia.com/gpu`를 요청하고 `nvidia.com/gpu=true:NoSchedule` taint를 toleration으로 허용해야 합니다. GPU NodePool과 NVIDIA 플러그인은 스케줄링 담당자가 확정한 `devoops/gpu: "true"` 라벨을 사용합니다. Kueue EKS 오버레이도 이 기준으로 준비해야 합니다. 기존 노드에 대한 실제 적용은 별도 검증합니다.
 - 첫 복구 테스트는 GPU 1장을 요청합니다. Kueue와 Ansible 사전 점검의 실험용 최소 용량은 실제 배치에 맞춰 설정합니다.
 - 확인은 학습 Pod 제출 후 NodeClaim 생성, 노드 Ready 및 `nvidia.com/gpu` 할당을 보고 진행합니다. 테스트를 끝낸 뒤 GPU 자원 정리를 확인한 후 AWS 기반을 삭제합니다. EKS를 내리기 전에 NodePool을 제거하고 GPU NodeClaim과 EC2 종료를 확인합니다.
 
