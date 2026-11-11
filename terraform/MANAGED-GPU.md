@@ -24,7 +24,7 @@
 
 `environments/prod/network/eks.tf`에서 프로필별 수량과 AZ, 허용 유형을 정한다. `modules/eks/gpu-nodes.tf`가 그룹별 IAM·Launch Template·Managed Node Group을 만든다.
 
-- 허용 유형: g4dn.xlarge(4vCPU/16GiB/T4 1장), g4dn.2xlarge(8vCPU/32GiB/T4 1장). 어느 유형이 선택돼도 인스턴스 1대=GPU 1장. CPU/RAM은 달라질 수 있으므로 JobSet 요청량을 작은 유형에서도 실행 가능한지 검토해야 한다.
+- test 허용 유형은 g4dn.xlarge(4vCPU/16GiB/T4 1장) 하나로 제한. full은 여기에 g4dn.2xlarge(8vCPU/32GiB/T4 1장)도 허용. 어느 유형이 선택돼도 인스턴스 1대=GPU 1장. full에서는 CPU/RAM이 달라질 수 있으므로 JobSet 요청량을 작은 유형에서도 실행 가능한지 검토해야 한다.
 - 모두 SPOT. EKS 관리형 그룹/ASG의 할당 전략이 지정 AZ와 유형 범위에서 공급한다. 온디맨드 자동 fallback 없음. 유형 순서를 xlarge 우선 보장으로 해석하지 않는다.
 - 기본 NVIDIA AMI: AL2023_x86_64_NVIDIA, EKS1.35, release_version=1.35.9-20261107. us-east-2 AWS public SSM에서 읽기 확인한 값으로 고정. 기존 Karpenter custom AMI ID를 그대로 이식하지 않는다.
 - GPU root EBS20GiB(gp3·암호화·노드 종료 시 삭제)는 이전 NodePool 크기 유지. 학습 데이터/체크포인트는 S3. IMDSv2 필수.
@@ -37,7 +37,7 @@
 
 읽기 조회 결과 us-east-2 All G and VT Spot Instance Requests=8 vCPU, GPU On-Demand=0. user 요청대로 모든 GPU는 Spot이며 CPU t3.large 온디맨드는 별도 일반 인스턴스 할당량 사용.
 
-- test A의 GPU2대는 xlarge만 있으면8vCPU, 2xlarge 두 대면16vCPU 필요. 후보 두 종류를 허용하므로 현재8vCPU로는 원하는2대를 못 채울 수 있다.
+- test A는 g4dn.xlarge만 허용하며 GPU2대=8vCPU로 현재 할당량에 맞춘다. 해당 리전의 다른 G/VT Spot 사용량이 없다는 전제이며, Spot 공급 자체는 보장하지 않는다.
 - full GPU15대는 모두 xlarge여도60vCPU, 모두2xlarge면120vCPU. 리전 전체의 다른 G/VT Spot도 같은 quota를 사용한다. full은 현재 quota로 배포할 수 없다.
 - Terraform plan 성공은 Spot 공급/할당량 확보나 노드 Ready의 증명이 아니다. 이번에는 quota 변경을 요청하거나 실제 인스턴스를 생성하지 않는다.
 

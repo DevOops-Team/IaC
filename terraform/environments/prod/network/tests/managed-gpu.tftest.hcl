@@ -94,12 +94,14 @@ run "two_cluster_test_without_autoscaling" {
   assert {
     condition = (
       toset(keys(output.eks_clusters.a.gpu_node_groups)) == toset(["training"]) &&
+      toset(output.eks_clusters.a.gpu_node_groups.training.instance_types) == toset(["g4dn.xlarge"]) &&
+      output.eks_clusters.a.gpu_node_groups.training.capacity_type == "SPOT" &&
       output.eks_clusters.a.gpu_node_groups.training.scaling.min_size == 2 &&
       output.eks_clusters.a.gpu_node_groups.training.scaling.desired_size == 2 &&
       output.eks_clusters.a.gpu_node_groups.training.scaling.max_size == 2 &&
       length(output.eks_clusters.b.gpu_node_groups) == 0
     )
-    error_message = "Test A must have exactly 2 fixed GPU workers; B must have no GPU group."
+    error_message = "Test A must have exactly 2 fixed g4dn.xlarge Spot workers (8 vCPU); B must have no GPU group."
   }
 
   assert {

@@ -3,7 +3,7 @@ data "aws_iam_role" "eks_admin" {
 }
 
 locals {
-  gpu_instance_types = ["g4dn.xlarge", "g4dn.2xlarge"]
+  gpu_instance_types = var.deployment_profile == "test" ? ["g4dn.xlarge"] : ["g4dn.xlarge", "g4dn.2xlarge"]
   eks_access_roles = {
     multikueue = {
       principal_arn     = "arn:aws:iam::354363695096:role/${local.name_prefix}-onprem-multikueue"

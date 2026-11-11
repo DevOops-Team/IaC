@@ -53,7 +53,7 @@ Karpenter를 제거하고 GPU는 EKS Managed Node Group으로 관리합니다. *
 | test (기본) | A / B | 각각 t3.large 1대 | A: 학습 2대 고정 / B: 0대 |
 | full (최종 목표) | A / B / C | 각각 t3.large 1대 | 각각 학습 4대 + 예비 1대 고정 |
 
-허용 GPU 인스턴스는 `g4dn.xlarge`·`g4dn.2xlarge`(각 T4 1장)입니다. A/B/C 노드는 각각 us-east-2a/b/c, EKS 제어부는 여러 AZ 서브넷을 사용합니다. 활성 GPU 그룹은 최소=희망=최대 수량으로 고정하므로 Karpenter·Cluster Autoscaler·노드 유지용 자리 표시 Pod를 사용하지 않습니다. test B는 GPU 그룹 자체가 없으며 Pod 요청만으로 GPU를 만들지 않습니다.
+test는 `g4dn.xlarge` 2대(총 8vCPU)만 허용합니다. full은 `g4dn.xlarge`·`g4dn.2xlarge`(각 T4 1장)를 허용합니다. A/B/C 노드는 각각 us-east-2a/b/c, EKS 제어부는 여러 AZ 서브넷을 사용합니다. 활성 GPU 그룹은 최소=희망=최대 수량으로 고정하므로 Karpenter·Cluster Autoscaler·노드 유지용 자리 표시 Pod를 사용하지 않습니다. test B는 GPU 그룹 자체가 없으며 Pod 요청만으로 GPU를 만들지 않습니다.
 
 - 프로필: `terraform/environments/prod/network/topology-test.tfvars` 또는 `topology-full.tfvars`. 선택은 plan 때 `-var-file`로 명시합니다. full→test 전환은 C와 예비 그룹 삭제/축소를 포함할 수 있어 별도 검토가 필요합니다.
 - 인프라 상한/유형/배치와 실행 전 조건: [관리형 GPU 구성·전환 안내](terraform/MANAGED-GPU.md).
