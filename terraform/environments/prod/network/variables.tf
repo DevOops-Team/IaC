@@ -4,6 +4,16 @@ variable "environment" {
   default     = "prod"
 }
 
+variable "deployment_profile" {
+  description = "test: EKS A/B with 2/0 GPU nodes. full: EKS A/B/C with fixed 4 training + 1 spare each. Both use prod names."
+  type        = string
+  default     = "test"
+  validation {
+    condition     = contains(["test", "full"], var.deployment_profile)
+    error_message = "Choose test or full explicitly."
+  }
+}
+
 variable "project_name" {
   description = "Project name used in resource names and tags."
   type        = string

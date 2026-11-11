@@ -35,7 +35,7 @@ Cloudflare DNS-only 레코드는 bootstrap이 관리하며, HTTPS는 gpu-k8s의 
 - state 전용 저장소는 `terraform/environments/prod/bootstrap`에서 관리합니다. 네 실행 폴더는 각각 S3 state와 잠금을 사용합니다. [Backend 안내](terraform/STATE-BACKEND.md)
 - 온프레 인증: `terraform/environments/prod/identity` (Roles Anywhere). [설정·배포 경계](terraform/ONPREM-AWS-IDENTITY.md).
 - `identity`의 IAM 역할은 `network`의 EKS Access Entry보다 먼저 생성해야 합니다. 워크로드 인증서 배포와 Kubernetes RBAC 연결은 후속 단계입니다.
-- Terraform과 이후 IaC 변경은 `develop`에 먼저 푸시합니다. `develop`에서 `main`으로 가는 PR에 `so1ky`를 리뷰어로 요청하고 승인 후 머지합니다.
+- 새 작업은 `develop`에서 feature 브랜치를 만들고 feature → `develop` PR을 거칩니다. 이어서 `develop` → `main` PR에 `so1ky` 리뷰를 요청하고 승인·CI 통과 후 머지합니다. `main` 직접 push와 머지한 작업 브랜치 재사용은 하지 않습니다.
 
 ```shell
 cd terraform/environments/prod/network
@@ -44,37 +44,23 @@ terraform validate
 terraform plan -var-file="terraform.local.tfvars"
 ```
 
-## EKS A GPU 노드 설정
+## EKS GPU 관리형 노드 그룹
 
-AWS 기반은 `terraform/environments/prod/network`에서 관리합니다. Karpenter 1.15.1 컨트롤러는 기존 시스템 CPU 노드에 배치합니다. GPU NodePool은 프라이빗 서브넷에서 `g4dn.xlarge` Spot을 필요할 때 생성하며, 한도는 GPU 2장과 8 vCPU입니다. EC2 중단 이벤트는 EventBridge에서 SQS로 전달합니다.
+Karpenter를 제거하고 GPU는 EKS Managed Node Group으로 관리합니다. **현재 기본값은 소규모 테스트 프로필**이며, 환경/리소스 이름은 계속 prod를 사용합니다.
 
-AWS 기반 배포 후, **프라이빗 EKS API에 닿는 운영 환경**에서 아래 순서로 설치합니다. Terraform을 실행한 PC와 설치 환경이 다르면 `terraform output -json karpenter_gpu` 결과를 설치 환경으로 전달합니다.
+| 프로필 | 클러스터 | 시스템 CPU (On-Demand) | GPU (모두 Spot) |
+| --- | --- | --- | --- |
+| test (기본) | A / B | 각각 t3.large 1대 | A: 학습 2대 고정 / B: 0대 |
+| full (최종 목표) | A / B / C | 각각 t3.large 1대 | 각각 학습 4대 + 예비 1대 고정 |
 
-```powershell
-# prod/network에서 실행. 다른 운영 환경으로 전달할 때는 아래 JSON을 저장해 읽습니다.
-$raw = terraform output -json karpenter_gpu
-if ($LASTEXITCODE -ne 0) { throw 'Karpenter output unavailable' }
-$gpu = ($raw -join "`n") | ConvertFrom-Json
-$context = $gpu.cluster_name
-aws eks update-kubeconfig --profile devoops --region us-east-2 --name $gpu.cluster_name --alias $context
-if ($LASTEXITCODE -ne 0) { throw 'EKS kubeconfig unavailable' }
-kubectl --context $context get --raw=/readyz
-if ($LASTEXITCODE -ne 0) { throw 'Private EKS API unavailable' }
+허용 GPU 인스턴스는 `g4dn.xlarge`·`g4dn.2xlarge`(각 T4 1장)입니다. A/B/C 노드는 각각 us-east-2a/b/c, EKS 제어부는 여러 AZ 서브넷을 사용합니다. 활성 GPU 그룹은 최소=희망=최대 수량으로 고정하므로 Karpenter·Cluster Autoscaler·노드 유지용 자리 표시 Pod를 사용하지 않습니다. test B는 GPU 그룹 자체가 없으며 Pod 요청만으로 GPU를 만들지 않습니다.
 
-$gpu.controller_values | helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --kube-context $context --namespace $gpu.namespace --version $gpu.karpenter_version --values - --wait
-if ($LASTEXITCODE -ne 0) { throw 'Karpenter installation failed' }
-
-$gpu.device_plugin_values | helm upgrade --install nvidia-device-plugin nvidia-device-plugin --repo https://nvidia.github.io/k8s-device-plugin --kube-context $context --namespace $gpu.namespace --version $gpu.device_plugin_version --values - --wait
-if ($LASTEXITCODE -ne 0) { throw 'NVIDIA device plugin installation failed' }
-
-$gpu.manifests | kubectl --context $context apply -f -
-if ($LASTEXITCODE -ne 0) { throw 'GPU resource configuration failed' }
-kubectl --context $context wait --for=condition=Ready ec2nodeclass/gpu-training nodepool/gpu-training --timeout=180s
-```
-
-- 학습 Pod는 `nvidia.com/gpu`를 요청하고 `nvidia.com/gpu=true:NoSchedule` taint를 toleration으로 허용해야 합니다. GPU NodePool과 NVIDIA 플러그인은 스케줄링 담당자가 확정한 `devoops/gpu: "true"` 라벨을 사용합니다. Kueue EKS 오버레이도 이 기준으로 준비해야 합니다. 기존 노드에 대한 실제 적용은 별도 검증합니다.
-- 첫 복구 테스트는 GPU 1장을 요청합니다. Kueue와 Ansible 사전 점검의 실험용 최소 용량은 실제 배치에 맞춰 설정합니다.
-- 확인은 학습 Pod 제출 후 NodeClaim 생성, 노드 Ready 및 `nvidia.com/gpu` 할당을 보고 진행합니다. 테스트를 끝낸 뒤 GPU 자원 정리를 확인한 후 AWS 기반을 삭제합니다. EKS를 내리기 전에 NodePool을 제거하고 GPU NodeClaim과 EC2 종료를 확인합니다.
+- 프로필: `terraform/environments/prod/network/topology-test.tfvars` 또는 `topology-full.tfvars`. 선택은 plan 때 `-var-file`로 명시합니다. full→test 전환은 C와 예비 그룹 삭제/축소를 포함할 수 있어 별도 검토가 필요합니다.
+- 인프라 상한/유형/배치와 실행 전 조건: [관리형 GPU 구성·전환 안내](terraform/MANAGED-GPU.md).
+- NVIDIA 플러그인 설정은 `terraform output -json gpu_bootstrap`, 클러스터별 endpoint·Pod Identity·GPU 그룹은 `terraform output -json eks_clusters`로 전달합니다. 플러그인 설치와 Kueue·JobSet·큐/RBAC는 쿠버 담당자가 GitOps에서 관리합니다.
+- 예비 그룹만 `devoops/spare=true:NoSchedule` taint를 가집니다. NVIDIA 플러그인은 GPU·예비 taint 모두 허용합니다. 일반 학습에는 예비 toleration을 주지 않습니다.
+- Karpenter 제거는 **코드 변경**이며 기존 Helm/NodePool/NodeClaim을 자동 삭제하지 않습니다. 실제 apply 전에 안전한 이관과 GPU 할당량 검증이 필요합니다.
+- **사용자 요청으로 ON/OFF 스크립트 작업은 중단했습니다.** 기존 scripts/infra는 Karpenter 기반의 예전 흐름이며 이 구성에 사용하지 않습니다. 이번 변경에서 해당 파일들은 수정하지 않았습니다.
 
 ## 장애 감지·서비스 복구
 

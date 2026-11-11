@@ -18,8 +18,9 @@ and AWS Pod Identity association. Storage ARNs in the EKS module call match the 
 root names; update both roots together if those names change. Planning does not
 require storage to have been created. Storage must exist before running jobs.
 
-Association: `devoops-prod-eks-a` / namespace `training` / ServiceAccount `trainer`
-→ `devoops-prod-eks-a-trainer-role`. Session tags restrict the trust policy to that
+Association: each configured cluster (`devoops-prod-eks-a/b` for test, plus `-c`
+for full) / namespace `training` / ServiceAccount `trainer` → its own
+`devoops-prod-eks-<alias>-trainer-role`. Session tags restrict the trust policy to that
 cluster ARN, namespace and ServiceAccount. Do not disable association session tags.
 
 This is a Pod-level credential boundary. Init containers, sidecars and main containers
