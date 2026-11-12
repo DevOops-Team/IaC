@@ -77,13 +77,12 @@ variable "amazon_side_asn" {
 variable "hub_registration" {
   description = <<-EOT
     How Terraform reaches the two Kubernetes APIs that register each EKS with the on-prem hub (GPU-142).
-    EKS endpoints are private: the runner reaches them through a SOCKS5 proxy into the on-prem network
-    (ssh -D 1080 k8s-master1). The on-prem API (172.30.0.120:6443) is read from a kubeconfig file.
+    EKS endpoints are private: run plan/apply with HTTPS_PROXY=socks5://127.0.0.1:1080 over
+    ssh -D 1080 k8s-master1 (see EKS-HUB-REGISTRATION.md). The on-prem API is read from a kubeconfig file.
   EOT
   type = object({
     onprem_kubeconfig = optional(string, "~/.kube/devoops-onprem.yaml")
     onprem_context    = optional(string)
-    eks_proxy_url     = optional(string, "socks5://127.0.0.1:1080")
     aws_profile       = optional(string, "devoops")
   })
   default = {}
