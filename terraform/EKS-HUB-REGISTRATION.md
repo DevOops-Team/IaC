@@ -21,7 +21,7 @@
 
 ## 실행 준비
 
-EKS API는 private endpoint만 열려 있어 개인 PC에서 바로 닿지 않는다. 온프레 안으로 SOCKS5 프록시를 열고 Terraform의 kubernetes provider가 그 프록시로 EKS에 붙는다(`hub_registration.eks_proxy_url`).
+EKS API는 private endpoint만 열려 있어 개인 PC에서 바로 닿지 않는다. 온프레 안으로 SOCKS5 프록시를 열고, plan · apply를 `HTTPS_PROXY=socks5://127.0.0.1:1080`으로 실행한다. kubernetes provider(EKS · 온프레)와 AWS provider가 모두 이 프록시를 지난다. 토큰을 받는 `aws eks get-token`은 SOCKS를 못 써서 provider가 그 프로세스에서만 프록시를 끈다. provider의 `proxy_url`은 쓰지 않는다: 클러스터를 처음 만들 때(엔드포인트가 아직 정해지지 않음) plan이 `cannot load Kubernetes client config`로 실패한다(11/12 재생성 시험에서 확인).
 
 ```sh
 # 1) AWS SSO (EKS 관리자 Access Entry = AdministratorAccess 역할, 토큰은 aws eks get-token)
@@ -35,7 +35,9 @@ ssh k8s-master1 'cat ~/.kube/config' > ~/.kube/devoops-onprem.yaml && chmod 600 
 ssh -N -D 1080 k8s-master1 &
 
 cd terraform/environments/prod/network
-terraform plan -var-file=terraform.local.tfvars
+export HTTPS_PROXY=socks5://127.0.0.1:1080
+terraform plan  -var-file=terraform.local.tfvars
+terraform apply -var-file=terraform.local.tfvars
 ```
 
 이 root를 plan하려면 위 세 가지가 항상 필요하다. 프록시가 없으면 EKS 쪽 리소스를 refresh하다 실패한다.
