@@ -35,7 +35,7 @@ jobs:
         working-directory: ${{ matrix.dir }}
       - name: Managed GPU topology (mock AWS, no resources created)
         if: matrix.dir == 'terraform/environments/prod/network'
-        run: terraform test -filter=tests/managed-gpu.tftest.hcl
+        run: terraform test
         working-directory: ${{ matrix.dir }}
 
   python-tests:

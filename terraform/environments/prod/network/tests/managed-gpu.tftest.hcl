@@ -10,6 +10,20 @@ mock_provider "aws" {
   }
 }
 
+# Hub registration (hub.tf) talks to Kubernetes; mocked so these checks stay offline.
+mock_provider "kubernetes" {
+  alias = "onprem"
+}
+mock_provider "kubernetes" {
+  alias = "eks_a"
+}
+mock_provider "kubernetes" {
+  alias = "eks_b"
+}
+mock_provider "kubernetes" {
+  alias = "eks_c"
+}
+
 variables {
   customer_gateway_ip = "192.0.2.10"
 }

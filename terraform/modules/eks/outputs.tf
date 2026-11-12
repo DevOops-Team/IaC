@@ -53,3 +53,13 @@ output "managed_gpu_node_groups" {
     }
   }
 }
+
+output "cluster_certificate_authority_data" {
+  description = "Base64 CA of the cluster API (kubeconfig certificate-authority-data)."
+  value       = aws_eks_cluster.this.certificate_authority[0].data
+}
+
+output "admin_access_policy_association_id" {
+  description = "Set once the Terraform admin role can call the Kubernetes API; hub registration waits for it."
+  value       = aws_eks_access_policy_association.admin.id
+}
