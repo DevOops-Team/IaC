@@ -35,10 +35,11 @@ provider "kubernetes" {
   }
 }
 
-# eks_c는 full 프로필에만 있다. 없을 때는 이 provider를 쓰는 리소스도 없다.
+# eks_c는 full 프로필에만 있다. 없을 때는 이 provider를 쓰는 리소스도 없지만, Terraform은 provider를
+# 설정하므로 주소가 비어 있으면 실패한다. 접속하지 않는 자리표시 주소를 넣는다.
 provider "kubernetes" {
   alias                  = "eks_c"
-  host                   = try(module.eks_c[0].cluster_endpoint, null)
+  host                   = try(module.eks_c[0].cluster_endpoint, "https://eks-c.not-created.invalid")
   cluster_ca_certificate = try(base64decode(module.eks_c[0].cluster_certificate_authority_data), null)
   proxy_url              = var.hub_registration.eks_proxy_url
   exec {
