@@ -4,8 +4,10 @@ locals {
   region      = "us-east-2"
   bucket_arn  = "arn:aws:s3:::${local.name_prefix}-ckpt-${local.account_id}-${local.region}"
   fencing_arn = "arn:aws:dynamodb:${local.region}:${local.account_id}:table/${local.name_prefix}-fencing"
-  cluster_arn = "arn:aws:eks:${local.region}:${local.account_id}:cluster/${local.name_prefix}-eks-a"
-  workloads   = setunion(toset(["backend", "recovery", "relocator", "multikueue"]), local.monitoring_workloads)
+  cluster_arns = [
+    for alias in ["a", "b", "c"] : "arn:aws:eks:${local.region}:${local.account_id}:cluster/${local.name_prefix}-eks-${alias}"
+  ]
+  workloads = setunion(toset(["backend", "recovery", "relocator", "multikueue"]), local.monitoring_workloads)
 }
 
 resource "aws_rolesanywhere_trust_anchor" "onprem" {

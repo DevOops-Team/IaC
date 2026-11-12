@@ -4,6 +4,16 @@ variable "environment" {
   default     = "prod"
 }
 
+variable "deployment_profile" {
+  description = "test: EKS A/B with 2/0 GPU nodes. full: EKS A/B/C with fixed 4 training + 1 spare each. Both use prod names."
+  type        = string
+  default     = "test"
+  validation {
+    condition     = contains(["test", "full"], var.deployment_profile)
+    error_message = "Choose test or full explicitly."
+  }
+}
+
 variable "project_name" {
   description = "Project name used in resource names and tags."
   type        = string
@@ -62,4 +72,19 @@ variable "amazon_side_asn" {
   description = "BGP ASN used by the AWS Virtual Private Gateway."
   type        = number
   default     = 64512
+}
+
+variable "hub_registration" {
+  description = <<-EOT
+    How Terraform reaches the two Kubernetes APIs that register each EKS with the on-prem hub (GPU-142).
+    EKS endpoints are private: the runner reaches them through a SOCKS5 proxy into the on-prem network
+    (ssh -D 1080 k8s-master1). The on-prem API (172.30.0.120:6443) is read from a kubeconfig file.
+  EOT
+  type = object({
+    onprem_kubeconfig = optional(string, "~/.kube/devoops-onprem.yaml")
+    onprem_context    = optional(string)
+    eks_proxy_url     = optional(string, "socks5://127.0.0.1:1080")
+    aws_profile       = optional(string, "devoops")
+  })
+  default = {}
 }

@@ -69,7 +69,7 @@ resource "aws_iam_role_policy" "relocator" {
         Sid      = "DiscoverWorkerCluster"
         Effect   = "Allow"
         Action   = "eks:DescribeCluster"
-        Resource = local.cluster_arn
+        Resource = local.cluster_arns
       },
     ]
   })
@@ -83,7 +83,7 @@ resource "aws_iam_role_policy" "multikueue" {
     Statement = [{
       Effect   = "Allow"
       Action   = "eks:DescribeCluster"
-      Resource = local.cluster_arn
+      Resource = local.cluster_arns
     }]
   })
 }

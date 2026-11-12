@@ -33,6 +33,10 @@ jobs:
       - name: validate
         run: terraform validate
         working-directory: ${{ matrix.dir }}
+      - name: Managed GPU topology (mock AWS, no resources created)
+        if: matrix.dir == 'terraform/environments/prod/network'
+        run: terraform test
+        working-directory: ${{ matrix.dir }}
 
   python-tests:
     runs-on: ubuntu-24.04

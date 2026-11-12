@@ -22,3 +22,44 @@ output "cluster_endpoint" {
 output "cluster_primary_security_group_id" {
   value = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id
 }
+
+output "service_ipv4_cidr" {
+  value = var.service_ipv4_cidr
+}
+
+output "cpu_node_group_name" {
+  value = aws_eks_node_group.cpu.node_group_name
+}
+
+output "cpu_configuration" {
+  value = {
+    capacity_type  = aws_eks_node_group.cpu.capacity_type
+    instance_types = aws_eks_node_group.cpu.instance_types
+    scaling        = aws_eks_node_group.cpu.scaling_config[0]
+  }
+}
+
+output "managed_gpu_node_groups" {
+  description = "Fixed GPU managed node groups; native EKS/ASG lifecycle, no Karpenter."
+  value = {
+    for role, group in aws_eks_node_group.gpu : role => {
+      name           = group.node_group_name
+      capacity_type  = group.capacity_type
+      instance_types = group.instance_types
+      scaling        = group.scaling_config[0]
+      labels         = group.labels
+      taints         = group.taint
+      az             = var.cpu_node_az
+    }
+  }
+}
+
+output "cluster_certificate_authority_data" {
+  description = "Base64 CA of the cluster API (kubeconfig certificate-authority-data)."
+  value       = aws_eks_cluster.this.certificate_authority[0].data
+}
+
+output "admin_access_policy_association_id" {
+  description = "Set once the Terraform admin role can call the Kubernetes API; hub registration waits for it."
+  value       = aws_eks_access_policy_association.admin.id
+}
