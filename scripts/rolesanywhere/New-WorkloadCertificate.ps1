@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('backend', 'recovery', 'relocator', 'multikueue')]
+    [ValidateSet('backend', 'recovery', 'relocator', 'multikueue', 'db-backup')]
     [string]$Workload,
     [string]$PkiDirectory = (Join-Path $env:USERPROFILE '.devoops/rolesanywhere/prod'),
     [string]$OpenSsl = 'C:/Program Files/Git/usr/bin/openssl.exe'

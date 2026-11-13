@@ -7,7 +7,7 @@ locals {
   cluster_arns = [
     for alias in ["a", "b", "c"] : "arn:aws:eks:${local.region}:${local.account_id}:cluster/${local.name_prefix}-eks-${alias}"
   ]
-  workloads = setunion(toset(["backend", "recovery", "relocator", "multikueue"]), local.monitoring_workloads)
+  workloads = setunion(toset(["backend", "recovery", "relocator", "multikueue", "db-backup"]), local.monitoring_workloads)
 }
 
 resource "aws_rolesanywhere_trust_anchor" "onprem" {
