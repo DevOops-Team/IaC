@@ -10,16 +10,22 @@
   ansible.builtin.include_tasks: namespace.yml
   loop:
   - platform
+  - data-system
   - cert-manager
   loop_control:
     loop_var: seed_namespace
   vars:
     seed_context: '{{ manager_context }}'
+# platform: frontend · backend · dispatcher, data-system: job-watcher (GPU-145) · 수집기
 - name: Seed manager image pull Secret
   ansible.builtin.include_tasks: registry.yml
+  loop:
+  - platform
+  - data-system
+  loop_control:
+    loop_var: seed_namespace
   vars:
     seed_context: '{{ manager_context }}'
-    seed_namespace: platform
 - name: Seed DNS-01 API token via stdin
   ansible.builtin.command:
     argv:

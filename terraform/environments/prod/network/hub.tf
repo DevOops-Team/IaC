@@ -11,14 +11,17 @@ provider "kubernetes" {
 
 # provider는 for_each가 안 되므로 클러스터마다 하나씩 둔다. 토큰은 SSO 관리자 역할로 받는다
 # (modules/eks의 admin Access Entry).
+# EKS API는 private이라 실행할 때 HTTPS_PROXY=socks5://127.0.0.1:1080 (ssh -D 1080 k8s-master1)로 넘긴다.
+# provider의 proxy_url을 쓰면 클러스터를 처음 만들 때(엔드포인트가 아직 unknown) plan이
+# "cannot load Kubernetes client config"로 실패한다. aws CLI(get-token)는 SOCKS를 못 쓰므로 그 프로세스만 끈다.
 provider "kubernetes" {
   alias                  = "eks_a"
   host                   = module.eks_a.cluster_endpoint
   cluster_ca_certificate = base64decode(module.eks_a.cluster_certificate_authority_data)
-  proxy_url              = var.hub_registration.eks_proxy_url
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
+    env         = { HTTPS_PROXY = "", https_proxy = "", ALL_PROXY = "", all_proxy = "" }
     args        = ["eks", "get-token", "--cluster-name", module.eks_a.cluster_name, "--region", "us-east-2", "--profile", var.hub_registration.aws_profile]
   }
 }
@@ -27,23 +30,24 @@ provider "kubernetes" {
   alias                  = "eks_b"
   host                   = module.eks_b.cluster_endpoint
   cluster_ca_certificate = base64decode(module.eks_b.cluster_certificate_authority_data)
-  proxy_url              = var.hub_registration.eks_proxy_url
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
+    env         = { HTTPS_PROXY = "", https_proxy = "", ALL_PROXY = "", all_proxy = "" }
     args        = ["eks", "get-token", "--cluster-name", module.eks_b.cluster_name, "--region", "us-east-2", "--profile", var.hub_registration.aws_profile]
   }
 }
 
-# eks_c는 full 프로필에만 있다. 없을 때는 이 provider를 쓰는 리소스도 없다.
+# eks_c는 full 프로필에만 있다. 없을 때는 이 provider를 쓰는 리소스도 없지만, Terraform은 provider를
+# 설정하므로 주소가 비어 있으면 실패한다. 접속하지 않는 자리표시 주소를 넣는다.
 provider "kubernetes" {
   alias                  = "eks_c"
-  host                   = try(module.eks_c[0].cluster_endpoint, null)
+  host                   = try(module.eks_c[0].cluster_endpoint, "https://eks-c.not-created.invalid")
   cluster_ca_certificate = try(base64decode(module.eks_c[0].cluster_certificate_authority_data), null)
-  proxy_url              = var.hub_registration.eks_proxy_url
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
+    env         = { HTTPS_PROXY = "", https_proxy = "", ALL_PROXY = "", all_proxy = "" }
     args        = ["eks", "get-token", "--cluster-name", "${local.name_prefix}-eks-c", "--region", "us-east-2", "--profile", var.hub_registration.aws_profile]
   }
 }
