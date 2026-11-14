@@ -1,0 +1,9 @@
+{
+  "interface": "enc0",
+  "type": "pass",
+  "ipprotocol": "inet",
+  "protocol": "tcp",
+  "source": { "address": "172.28.0.0/16" },
+  "destination": { "any": "" },
+  "descr": "DevOops AWS VPN inbound TCP"
+}

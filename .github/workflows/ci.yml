@@ -9,6 +9,16 @@ permissions:
   contents: read
 
 jobs:
+  pfsense-policy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate firewall policy scripts without firewall access
+        run: |
+          php -l scripts/pfsense/vpn-inbound.php
+          php -l scripts/pfsense/tests/test-vpn-inbound.php
+          php scripts/pfsense/tests/test-vpn-inbound.php
+
   terraform:
     runs-on: ubuntu-24.04
     strategy:
