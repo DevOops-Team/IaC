@@ -1,4 +1,4 @@
-# 인증서 CN이 <prefix>-<workload>이고 우리 trust anchor로 들어온 세션만 이 역할을 맡을 수 있다.
+# 인증서 CN이 <prefix>-<workload>이고 우리 trust anchor(들)로 들어온 세션만 이 역할을 맡을 수 있다.
 resource "aws_iam_role" "this" {
   name                 = "${var.name_prefix}-onprem-${var.workload}"
   max_session_duration = 3600
@@ -10,7 +10,7 @@ resource "aws_iam_role" "this" {
       Principal = { Service = "rolesanywhere.amazonaws.com" }
       Action    = ["sts:AssumeRole", "sts:SetSourceIdentity", "sts:TagSession"]
       Condition = {
-        ArnEquals = { "aws:SourceArn" = var.trust_anchor_arn }
+        ArnEquals = { "aws:SourceArn" = var.trust_anchor_arns }
         StringEquals = {
           "aws:SourceAccount"               = var.account_id
           "aws:PrincipalTag/x509Subject/CN" = "${var.name_prefix}-${var.workload}"
