@@ -81,7 +81,8 @@ jobs:
       - name: Install test deps
         run: pip install pyyaml
       - name: cloudflare DNS plan
-        run: python -m unittest tests/test_cloudflare_dns.py
+        run: python -m unittest discover -s tests -v
+        working-directory: ansible/roles/cloudflare-provider
       - name: recovery watcher
         run: python -m unittest discover -s tests
         working-directory: ansible/scripts/recovery

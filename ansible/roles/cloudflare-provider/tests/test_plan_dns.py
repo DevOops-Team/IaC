@@ -2,8 +2,8 @@ import importlib.util
 from pathlib import Path
 import unittest
 
-ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('plan_dns', ROOT / 'ansible/roles/cloudflare-provider/files/plan_dns.py')
+ROLE = Path(__file__).resolve().parents[1]
+spec = importlib.util.spec_from_file_location('plan_dns', ROLE / 'files/plan_dns.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
