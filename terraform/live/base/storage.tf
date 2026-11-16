@@ -27,6 +27,13 @@ module "fencing" {
   pitr_days = local.cfg.fencing_table.pitr_days
 }
 
+module "recovery" {
+  source    = "../../modules/dynamodb"
+  name      = "${local.name_prefix}-recovery"
+  hash_key  = local.cfg.recovery_table.hash_key
+  pitr_days = local.cfg.recovery_table.pitr_days
+}
+
 locals {
   checkpoint_arn = "arn:aws:s3:::${local.checkpoint_bucket_name}"
   monitoring_arn = "arn:aws:s3:::${local.monitoring_bucket_name}"

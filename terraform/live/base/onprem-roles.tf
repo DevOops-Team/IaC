@@ -21,12 +21,20 @@ locals {
     }
     recovery = {
       name = "recovery-fencing-access"
-      statements = [{
-        Sid      = "ManageRecoveryState"
-        Effect   = "Allow"
-        Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
-        Resource = local.fencing_arn
-      }]
+      statements = [
+        {
+          Sid      = "ManageRecoveryState"
+          Effect   = "Allow"
+          Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
+          Resource = local.fencing_arn
+        },
+        {
+          Sid      = "ManageRecoveryTable"
+          Effect   = "Allow"
+          Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Scan"]
+          Resource = module.recovery.arn
+        },
+      ]
     }
     relocator = {
       name = "relocator-data-access"
