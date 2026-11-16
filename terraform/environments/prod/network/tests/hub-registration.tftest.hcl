@@ -2,7 +2,7 @@
 mock_provider "aws" {
   mock_data "aws_iam_role" {
     defaults = {
-      arn = "arn:aws:iam::354363695096:role/test-admin"
+      arn = "arn:aws:iam::947027666399:role/test-admin"
     }
   }
   mock_data "aws_region" {

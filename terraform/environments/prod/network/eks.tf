@@ -6,11 +6,11 @@ locals {
   gpu_instance_types = var.deployment_profile == "test" ? ["g4dn.xlarge"] : ["g4dn.xlarge", "g4dn.2xlarge"]
   eks_access_roles = {
     multikueue = {
-      principal_arn     = "arn:aws:iam::354363695096:role/${local.name_prefix}-onprem-multikueue"
+      principal_arn     = "arn:aws:iam::947027666399:role/${local.name_prefix}-onprem-multikueue"
       kubernetes_groups = ["devoops:multikueue"]
     }
     relocator = {
-      principal_arn     = "arn:aws:iam::354363695096:role/${local.name_prefix}-onprem-relocator"
+      principal_arn     = "arn:aws:iam::947027666399:role/${local.name_prefix}-onprem-relocator"
       kubernetes_groups = ["devoops:relocator"]
     }
   }
@@ -24,8 +24,8 @@ module "eks_a" {
 
   project_name          = var.project_name
   environment           = var.environment
-  checkpoint_bucket_arn = "arn:aws:s3:::${local.name_prefix}-ckpt-354363695096-us-east-2"
-  fencing_table_arn     = "arn:aws:dynamodb:us-east-2:354363695096:table/${local.name_prefix}-fencing"
+  checkpoint_bucket_arn = "arn:aws:s3:::${local.name_prefix}-ckpt-947027666399-us-east-2"
+  fencing_table_arn     = "arn:aws:dynamodb:us-east-2:947027666399:table/${local.name_prefix}-fencing"
   onprem_access_roles   = local.eks_access_roles
   admin_role_arn        = data.aws_iam_role.eks_admin.arn
 
@@ -55,8 +55,8 @@ module "eks_b" {
 
   project_name          = var.project_name
   environment           = var.environment
-  checkpoint_bucket_arn = "arn:aws:s3:::${local.name_prefix}-ckpt-354363695096-us-east-2"
-  fencing_table_arn     = "arn:aws:dynamodb:us-east-2:354363695096:table/${local.name_prefix}-fencing"
+  checkpoint_bucket_arn = "arn:aws:s3:::${local.name_prefix}-ckpt-947027666399-us-east-2"
+  fencing_table_arn     = "arn:aws:dynamodb:us-east-2:947027666399:table/${local.name_prefix}-fencing"
   onprem_access_roles   = local.eks_access_roles
   admin_role_arn        = data.aws_iam_role.eks_admin.arn
 
@@ -87,8 +87,8 @@ module "eks_c" {
 
   project_name          = var.project_name
   environment           = var.environment
-  checkpoint_bucket_arn = "arn:aws:s3:::${local.name_prefix}-ckpt-354363695096-us-east-2"
-  fencing_table_arn     = "arn:aws:dynamodb:us-east-2:354363695096:table/${local.name_prefix}-fencing"
+  checkpoint_bucket_arn = "arn:aws:s3:::${local.name_prefix}-ckpt-947027666399-us-east-2"
+  fencing_table_arn     = "arn:aws:dynamodb:us-east-2:947027666399:table/${local.name_prefix}-fencing"
   onprem_access_roles   = local.eks_access_roles
   admin_role_arn        = data.aws_iam_role.eks_admin.arn
 

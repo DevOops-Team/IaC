@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('backend', 'recovery', 'relocator', 'multikueue', 'db-backup')]
+    [ValidateSet('backend', 'recovery', 'relocator', 'multikueue', 'db-backup', 'mimir', 'loki', 'tempo')]
     [string]$Workload,
+    [ValidateRange(1, 365)]
+    [int]$ValidityDays = 30,
     [string]$PkiDirectory = (Join-Path $env:USERPROFILE '.devoops/rolesanywhere/prod'),
     [string]$OpenSsl = 'C:/Program Files/Git/usr/bin/openssl.exe'
 )
@@ -23,7 +25,12 @@ foreach ($sid in @($userSid, $systemSid)) {
         $sid, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
     $acl.AddAccessRule($rule)
 }
-Set-Acl -LiteralPath $pkiPath -AclObject $acl
+# Write only the access rules; Set-Acl can request audit privileges unnecessarily.
+if ($PSVersionTable.PSVersion.Major -ge 7) {
+    [IO.FileSystemAclExtensions]::SetAccessControl([IO.DirectoryInfo]::new($pkiPath), $acl)
+} else {
+    [IO.DirectoryInfo]::new($pkiPath).SetAccessControl($acl)
+}
 
 function Invoke-OpenSsl {
     param([string[]]$Arguments)
@@ -43,7 +50,7 @@ if (-not (Test-Path -LiteralPath $caCert)) {
         '-addext', 'keyUsage=critical,keyCertSign,cRLSign',
         '-keyout', $caKey, '-out', $caCert)
 }
-Invoke-OpenSsl -Arguments @('x509', '-in', $caCert, '-checkend', '2592000', '-noout')
+Invoke-OpenSsl -Arguments @('x509', '-in', $caCert, '-checkend', ([string]($ValidityDays * 86400)), '-noout')
 
 if ($Workload) {
     $workloadPath = Join-Path $pkiPath $Workload
@@ -67,8 +74,8 @@ authorityKeyIdentifier=keyid,issuer
     $serial = (& $OpenSsl rand -hex 16).Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Could not generate certificate serial.' }
     Invoke-OpenSsl -Arguments @('x509', '-req', '-in', $csr, '-CA', $caCert, '-CAkey', $caKey,
-        '-set_serial', "0x$serial", '-days', '30', '-sha256', '-extfile', $extensions, '-out', $cert)
+        '-set_serial', "0x$serial", '-days', ([string]$ValidityDays), '-sha256', '-extfile', $extensions, '-out', $cert)
     Invoke-OpenSsl -Arguments @('verify', '-CAfile', $caCert, $cert)
-    Write-Output "Issued 30-day certificate for $Workload. Private files remain in $workloadPath; do not commit them."
+    Write-Output "Issued $ValidityDays-day certificate for $Workload. Private files remain in $workloadPath; do not commit them."
 }
 Write-Output "Public CA certificate: $caCert"

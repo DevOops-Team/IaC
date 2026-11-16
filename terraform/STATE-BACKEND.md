@@ -1,11 +1,24 @@
 # Terraform state backend — prod
 
-The state bucket and all four remote backends were initialized on 2026-11-06.
-The prod foundation is deployed with one EKS CPU node.
+The configuration now targets AWS account `947027666399`, using SSO profile
+`nochan` in `us-east-2`. This is a fresh deployment, not a migration of the old
+account's state. The old deployment was removed; changing this code does not
+create any resources in the new account.
+
+Do not reuse old saved plans or migrate the old account's state into this bucket.
+Existing `.terraform` directories may still cache the old backend configuration;
+use a separate checkout/data directory when preparing the new account.
+For initial bootstrap, use an isolated working copy with backend.tf omitted so
+the first state is local, then follow the activation sequence below after the
+new bucket exists. Keep any old state backups outside Git.
+
+The paused `scripts/infra` lifecycle runner still targets the previous account
+and Karpenter workflow. It is not part of this account update and must not be
+used to deploy or destroy this configuration.
 
 ## Layout
 
-Dedicated bucket: `devoops-prod-tfstate-354363695096-us-east-2`.
+Dedicated bucket: `devoops-prod-tfstate-947027666399-us-east-2`.
 This is not the training/checkpoint bucket.
 
 | Root | State key |
@@ -37,8 +50,8 @@ to this bucket, upload state to Git, or share saved plan files as ordinary logs.
 
 All four prod roots use an active `backend.tf`. Backend settings live under
 `terraform/backends/prod/*.s3.tfbackend` and contain no secret credentials. A backend
-authenticates independently from the AWS provider: both use profile devoops and
-account allowlist 354363695096. The CLI's SSO login must be valid for both.
+authenticates independently from the AWS provider: both use profile nochan and
+account allowlist 947027666399. The CLI's SSO login must be valid for both.
 
 The bootstrap root exports a minimal backend-access policy for future SSO/CI
 permission sets. It is a reference, not automatically attached, and contains no
@@ -51,7 +64,7 @@ These steps document the initial bootstrap. For a fresh checkout of the existing
 prod deployment, initialize the active backend with its matching configuration
 file. Generate a fresh plan after backend or permission changes.
 
-1. Sign into account 354363695096 with profile devoops; verify STS caller identity.
+1. Sign into account 947027666399 with profile nochan; verify STS caller identity.
 2. In prod/bootstrap, init/validate/plan locally, then create only its six state
    bucket resources. The initial bootstrap state will be local.
 3. Confirm bucket ownership, region, versioning, encryption, policy and public

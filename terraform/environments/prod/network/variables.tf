@@ -83,7 +83,7 @@ variable "hub_registration" {
   type = object({
     onprem_kubeconfig = optional(string, "~/.kube/devoops-onprem.yaml")
     onprem_context    = optional(string)
-    aws_profile       = optional(string, "devoops")
+    aws_profile       = optional(string, "nochan")
   })
   default = {}
 }

@@ -1,5 +1,5 @@
 locals {
-  monitoring_bucket_name = "${local.name_prefix}-monitoring-354363695096-us-east-2"
+  monitoring_bucket_name = "${local.name_prefix}-monitoring-947027666399-us-east-2"
 }
 
 resource "aws_s3_bucket" "monitoring" {

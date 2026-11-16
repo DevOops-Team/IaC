@@ -25,7 +25,7 @@ EKS API는 private endpoint만 열려 있어 개인 PC에서 바로 닿지 않�
 
 ```sh
 # 1) AWS SSO (EKS 관리자 Access Entry = AdministratorAccess 역할, 토큰은 aws eks get-token)
-aws sso login --profile devoops
+aws sso login --profile nochan
 
 # 2) 온프레 kubeconfig: 172.30.0.120:6443, argocd · kueue-system Secret 쓰기 + platform/ghcr-pull 읽기
 #    기본 경로 ~/.kube/devoops-onprem.yaml (hub_registration.onprem_kubeconfig로 바꿀 수 있음)

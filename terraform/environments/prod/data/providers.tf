@@ -1,8 +1,8 @@
 provider "aws" {
   region  = "us-east-2"
-  profile = "devoops"
+  profile = "nochan"
 
-  allowed_account_ids = ["354363695096"]
+  allowed_account_ids = ["947027666399"]
 
   default_tags {
     tags = {
