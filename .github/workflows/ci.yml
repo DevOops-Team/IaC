@@ -25,10 +25,11 @@ jobs:
       fail-fast: false
       matrix:
         dir:
-          - terraform/environments/prod/bootstrap
-          - terraform/environments/prod/data
-          - terraform/environments/prod/identity
-          - terraform/environments/prod/network
+          - terraform/state
+          - terraform/data
+          - terraform/identity
+          - terraform/vpc
+          - terraform/eks
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
@@ -44,9 +45,31 @@ jobs:
         run: terraform validate
         working-directory: ${{ matrix.dir }}
       - name: Managed GPU topology (mock AWS, no resources created)
-        if: matrix.dir == 'terraform/environments/prod/network'
+        if: matrix.dir == 'terraform/eks'
         run: terraform test
         working-directory: ${{ matrix.dir }}
+
+  scripts:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: bash syntax (terraform/run.sh · bootstrap/certs.sh)
+        run: bash -n terraform/run.sh && bash -n bootstrap/certs.sh
+      - name: certs.sh issues CN-matching 60-day certificates (temporary PKI)
+        run: |
+          pki="$RUNNER_TEMP/pki"
+          bootstrap/certs.sh --pki-dir "$pki" --init-ca
+          for w in backend mimir loki tempo; do
+            openssl x509 -in "$pki/$w/client.pem" -noout -subject | grep -q "CN *= *devoops-prod-$w"
+            openssl x509 -in "$pki/$w/client.pem" -noout -checkend $((59*86400))
+            ! openssl x509 -in "$pki/$w/client.pem" -noout -checkend $((61*86400))
+          done
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.17.0
+          terraform_wrapper: false
+      - name: run.sh validate (no backend, no credentials)
+        run: terraform/run.sh validate
 
   python-tests:
     runs-on: ubuntu-24.04
