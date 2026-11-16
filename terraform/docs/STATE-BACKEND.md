@@ -5,7 +5,7 @@
 
 | 항목 | 값 |
 | --- | --- |
-| 버킷 | `<project>-<env>-tfstate-<account>-<region>` (예: `devoops-prod-tfstate-947027666399-us-east-2`). 학습 체크포인트 버킷과 별개 |
+| 버킷 | `<project>-<env>-tfstate-<account>-<region>` (예: `devoops-prod-tfstate-<account>-us-east-2`). 학습 체크포인트 버킷과 별개 |
 | 키 | `<env>/<root>/terraform.tfstate`. `state` root만 처음 이름을 유지해 `prod/bootstrap/terraform.tfstate` |
 | 잠금 | S3 native lock (`use_lockfile = true`), root마다 `.tflock` 객체. DynamoDB 잠금 테이블 없음 |
 | 인증 | AWS 프로파일 `devoops` (`run.sh --profile`로만 변경). backend와 provider가 같은 프로파일을 쓴다 |
