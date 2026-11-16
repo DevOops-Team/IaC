@@ -41,7 +41,7 @@ onprem_workloads: [backend, recovery, relocator, multikueue, db-backup, mimir, l
 
 # ---------------------------------------------------------------- base: 네트워크
 network:
-  enabled: true            # false로 apply하면 VPC · NAT · VPN을 지운다 (EKS를 먼저 지울 것). NAT+VPN은 시간당 과금
+  enabled: false           # false로 apply하면 VPC · NAT · VPN을 지운다 (EKS를 먼저 지울 것). NAT+VPN은 시간당 과금
   cidr: 172.28.0.0/16
   subnets:                 # AZ => 서브넷. NAT는 정렬한 첫 AZ, EKS 클러스터는 az_index로 AZ를 고른다
     us-east-2a: { public_cidr: 172.28.10.0/24, private_cidr: 172.28.64.0/20 }
