@@ -14,7 +14,7 @@ The only S3 permission statement allows:
 - `s3:AbortMultipartUpload`
 - `s3:ListMultipartUploadParts`
 
-Resource: `arn:aws:s3:::devoops-prod-ckpt-354363695096-us-east-2/backups/db/*`.
+Resource: `arn:aws:s3:::devoops-prod-ckpt-947027666399-us-east-2/backups/db/*`.
 There is no GetObject, ListBucket/ListBackupPrefix, DeleteObject, access to
 checkpoint paths, or bucket administration permission. SSE-S3 is used, so this
 change adds no KMS permissions. Use unique timestamped object keys for backups.

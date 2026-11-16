@@ -1,6 +1,6 @@
 locals {
   name_prefix = "${var.project_name}-${var.environment}"
-  account_id  = "354363695096"
+  account_id  = "947027666399"
   region      = "us-east-2"
   bucket_arn  = "arn:aws:s3:::${local.name_prefix}-ckpt-${local.account_id}-${local.region}"
   fencing_arn = "arn:aws:dynamodb:${local.region}:${local.account_id}:table/${local.name_prefix}-fencing"

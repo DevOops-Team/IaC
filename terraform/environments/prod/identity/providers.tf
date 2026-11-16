@@ -1,7 +1,7 @@
 provider "aws" {
   region              = "us-east-2"
-  profile             = "devoops"
-  allowed_account_ids = ["354363695096"]
+  profile             = "nochan"
+  allowed_account_ids = ["947027666399"]
   default_tags {
     tags = {
       Project     = var.project_name

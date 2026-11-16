@@ -42,6 +42,23 @@ using PowerShell (the script does not create Kubernetes Secrets):
 ./scripts/rolesanywhere/New-WorkloadCertificate.ps1 -Workload multikueue
 ```
 
+Monitoring workloads also have separate certificates. For an explicitly selected
+60-day validity period (the default remains 30 days):
+
+```powershell
+./scripts/rolesanywhere/New-WorkloadCertificate.ps1 -Workload mimir -ValidityDays 60
+./scripts/rolesanywhere/New-WorkloadCertificate.ps1 -Workload loki -ValidityDays 60
+./scripts/rolesanywhere/New-WorkloadCertificate.ps1 -Workload tempo -ValidityDays 60
+```
+
+The corresponding CNs are `devoops-prod-mimir`, `devoops-prod-loki`, and
+`devoops-prod-tempo`. Transfer only each workload's client.pem/client.key through
+an agreed secure channel such as SCP into a private directory; never send ca.key.
+Verify the active AWS trust anchor matches the issuing CA before handoff.
+Retrieve fresh role/profile/trust-anchor ARNs after any AWS recreation rather
+than reusing identifiers from an old state backup. Monitoring object retention
+is managed by Mimir/Loki/Tempo; do not add a blanket 30-day S3 object expiration.
+
 For explicit renewal, prepare a new secured PkiDirectory containing a restored
 copy of the same ca.key/ca.pem and issue new leaves there. Verify the new chain,
 deploy leaf files atomically, restart/reload consumers as necessary and confirm
