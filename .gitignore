@@ -9,6 +9,8 @@ ansible/.cache/
 *.tfstate.*
 .terraform/
 .env
+.env.*
+!.env.example
 .DS_Store
 
 # Host/account-specific edge configuration and secret variable files
@@ -34,18 +36,41 @@ ansible/.state/
 # Local VS Code settings
 .vscode/
 
-ansible/environments/**/*.local.yml
-ansible/environments/**/*.local.yaml
 
 
 # Local Terraform inputs and saved plans
-*.local.tfvars
+# tfvars는 비밀값(공인 IP 등)이 들어가기 쉬워 전부 무시한다. 레포 값은 terraform/config/*.yaml에 둔다
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
 *.tfplan
 *.tfplan.json
+# Terraform이 남기는 로컬 파일: 충돌 로그(state · 변수가 들어갈 수 있음), 로컬 override, CLI 설정(토큰)
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+# provider 공유 캐시를 레포 안에 둘 때 (CI는 워크스페이스 안)
+.terraform-plugin-cache/
 
 # Local pfSense connection and topology inputs
 ansible/pfsense-edge.local.yml
 ansible/inventory/pfsense/hosts.local.yml
 
-# Local infrastructure lifecycle settings
-scripts/infra/config.local.json
+# terraform/run.sh: state 버킷을 처음 만들 때만 잠깐 생기는 로컬 backend override (*_override.tf로도 걸림)
+terraform/state/zz_local_backend_override.tf
+
+# 개인 키 · 인증서 묶음 · kubeconfig: 레포 밖에 둔다 (bootstrap/certs.sh는 ~/.devoops/rolesanywhere에 만든다)
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.csr
+*.kubeconfig
+kubeconfig
+admin.conf

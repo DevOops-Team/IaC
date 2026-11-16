@@ -1,0 +1,153 @@
+# mock provider라 AWS 자원을 만들지 않고 토폴로지만 검사한다.
+mock_provider "aws" {
+  mock_data "aws_caller_identity" {
+    defaults = { account_id = "123456789012" }
+  }
+  mock_data "aws_region" {
+    defaults = { region = "us-east-2" }
+  }
+  mock_data "aws_iam_roles" {
+    defaults = {
+      arns = ["arn:aws:iam::123456789012:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AdministratorAccess_test"]
+    }
+  }
+}
+
+# live/base의 출력 (live/eks/base.tf). 실제 S3 state를 읽지 않는다.
+override_data {
+  target = data.terraform_remote_state.base
+  values = {
+    outputs = {
+      network = {
+        vpc_id            = "vpc-0123456789abcdef0"
+        public_subnet_ids = {}
+        private_subnet_ids = {
+          us-east-2a = "subnet-0aaaaaaaaaaaaaaaa"
+          us-east-2b = "subnet-0bbbbbbbbbbbbbbbb"
+          us-east-2c = "subnet-0cccccccccccccccc"
+        }
+        vpn_connection_id = "vpn-0123456789abcdef0"
+      }
+      checkpoint_bucket = { name = "devoops-prod-ckpt-123456789012-us-east-2", arn = "arn:aws:s3:::devoops-prod-ckpt-123456789012-us-east-2" }
+      fencing_table     = { name = "devoops-prod-fencing", arn = "arn:aws:dynamodb:us-east-2:123456789012:table/devoops-prod-fencing" }
+      onprem_role_arns = {
+        multikueue = "arn:aws:iam::123456789012:role/devoops-prod-onprem-multikueue"
+        relocator  = "arn:aws:iam::123456789012:role/devoops-prod-onprem-relocator"
+      }
+    }
+  }
+}
+
+# 허브 등록(hub.tf)의 Kubernetes도 mock으로 대체한다.
+mock_provider "kubernetes" {
+  alias = "onprem"
+}
+mock_provider "kubernetes" {
+  alias = "eks_a"
+}
+mock_provider "kubernetes" {
+  alias = "eks_b"
+}
+mock_provider "kubernetes" {
+  alias = "eks_c"
+}
+
+run "three_fixed_spot_gpu_clusters" {
+  command = plan
+
+  variables {
+    deployment_profile = "full"
+  }
+
+  assert {
+    condition     = toset(keys(output.eks_clusters)) == toset(["a", "b", "c"])
+    error_message = "full은 EKS A/B/C 세 개여야 한다."
+  }
+
+  assert {
+    condition = alltrue([
+      for alias, cluster in output.eks_clusters :
+      cluster.name == "devoops-prod-eks-${alias}" &&
+      cluster.cpu_node_group == "devoops-prod-eks-${alias}-cpu" &&
+      cluster.cpu.capacity_type == "ON_DEMAND" &&
+      cluster.cpu.scaling.min_size == 1 && cluster.cpu.scaling.desired_size == 1 && cluster.cpu.scaling.max_size == 1 &&
+      toset(keys(cluster.gpu_node_groups)) == toset(["training", "spare"])
+    ])
+    error_message = "클러스터마다 CPU 그룹과 학습 · 예비 GPU 그룹이 따로 있어야 한다."
+  }
+
+  assert {
+    condition = alltrue(flatten([
+      for alias, cluster in output.eks_clusters : [
+        for role, group in cluster.gpu_node_groups :
+        group.capacity_type == "SPOT" &&
+        toset(group.instance_types) == toset(["g4dn.xlarge", "g4dn.2xlarge"]) &&
+        group.scaling.min_size == (role == "training" ? 4 : 1) &&
+        group.scaling.desired_size == group.scaling.min_size &&
+        group.scaling.max_size == group.scaling.min_size &&
+        group.az == "us-east-2${alias}"
+      ]
+    ]))
+    error_message = "GPU 그룹은 클러스터 AZ에 학습 4 + 예비 1대 고정 Spot, 허용된 두 유형만 써야 한다."
+  }
+
+  assert {
+    condition = alltrue([
+      for cluster in values(output.eks_clusters) :
+      cluster.gpu_node_groups.training.labels["devoops/gpu"] == "true" &&
+      !contains(keys(cluster.gpu_node_groups.training.labels), "devoops/spare") &&
+      cluster.gpu_node_groups.spare.labels["devoops/spare"] == "true" &&
+      length([for t in cluster.gpu_node_groups.training.taints : t if t.key == "devoops/spare"]) == 0 &&
+      length([for t in cluster.gpu_node_groups.spare.taints : t if t.key == "devoops/spare" && t.effect == "NO_SCHEDULE"]) == 1
+    ])
+    error_message = "spare 라벨 · taint는 예비 그룹에만 있어야 한다."
+  }
+
+  assert {
+    condition     = length(distinct([for cluster in values(output.eks_clusters) : cluster.service_cidr])) == 3
+    error_message = "클러스터마다 Service CIDR이 달라야 한다."
+  }
+
+  assert {
+    condition = length([
+      for t in yamldecode(output.gpu_bootstrap.device_plugin_values).tolerations : t
+      if t.key == "devoops/spare" && t.value == "true"
+    ]) == 1
+    error_message = "NVIDIA plugin은 예비 노드 taint를 허용해야 한다."
+  }
+}
+
+run "two_cluster_test_without_autoscaling" {
+  command = plan
+
+  variables {
+    deployment_profile = "test"
+  }
+
+  assert {
+    condition     = toset(keys(output.eks_clusters)) == toset(["a", "b"])
+    error_message = "test는 A와 B만 만들어야 한다."
+  }
+
+  assert {
+    condition = (
+      toset(keys(output.eks_clusters.a.gpu_node_groups)) == toset(["training"]) &&
+      toset(output.eks_clusters.a.gpu_node_groups.training.instance_types) == toset(["g4dn.xlarge"]) &&
+      output.eks_clusters.a.gpu_node_groups.training.capacity_type == "SPOT" &&
+      output.eks_clusters.a.gpu_node_groups.training.scaling.min_size == 2 &&
+      output.eks_clusters.a.gpu_node_groups.training.scaling.desired_size == 2 &&
+      output.eks_clusters.a.gpu_node_groups.training.scaling.max_size == 2 &&
+      length(output.eks_clusters.b.gpu_node_groups) == 0
+    )
+    error_message = "test A는 g4dn.xlarge Spot 2대 고정(8 vCPU), B는 GPU 그룹이 없어야 한다."
+  }
+
+  assert {
+    condition = alltrue([for cluster in values(output.eks_clusters) :
+      cluster.cpu.capacity_type == "ON_DEMAND" &&
+      toset(cluster.cpu.instance_types) == toset(["t3.large"]) &&
+      cluster.cpu.scaling.min_size == 1 && cluster.cpu.scaling.desired_size == 1 && cluster.cpu.scaling.max_size == 1
+    ])
+    error_message = "test 두 클러스터 모두 시스템 CPU 그룹이 있어야 한다."
+  }
+}

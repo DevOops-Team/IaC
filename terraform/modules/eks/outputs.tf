@@ -1,6 +1,6 @@
 output "trainer_role_arn" {
-  description = "Pod Identity role for the training/trainer ServiceAccount."
-  value       = aws_iam_role.trainer.arn
+  description = "training/trainer ServiceAccount의 Pod Identity 역할 ARN."
+  value       = module.trainer_role.arn
 }
 
 output "trainer_pod_identity_association_id" {
@@ -40,7 +40,7 @@ output "cpu_configuration" {
 }
 
 output "managed_gpu_node_groups" {
-  description = "Fixed GPU managed node groups; native EKS/ASG lifecycle, no Karpenter."
+  description = "고정 GPU 노드그룹 구성 (Karpenter 없음)."
   value = {
     for role, group in aws_eks_node_group.gpu : role => {
       name           = group.node_group_name
@@ -55,11 +55,11 @@ output "managed_gpu_node_groups" {
 }
 
 output "cluster_certificate_authority_data" {
-  description = "Base64 CA of the cluster API (kubeconfig certificate-authority-data)."
+  description = "클러스터 API CA (base64, kubeconfig certificate-authority-data)."
   value       = aws_eks_cluster.this.certificate_authority[0].data
 }
 
 output "admin_access_policy_association_id" {
-  description = "Set once the Terraform admin role can call the Kubernetes API; hub registration waits for it."
+  description = "관리자 Access Entry 연결 ID. 허브 등록이 이 값이 생긴 뒤에 시작한다."
   value       = aws_eks_access_policy_association.admin.id
 }

@@ -40,7 +40,7 @@ Argo UI/API는 우선 `kubectl --context CONTEXT -n argocd port-forward svc/argo
 ## 3. GitHub·이미지·클러스터 등록
 
 형제 Gitops 폴더는 별도 저장소(https://github.com/DevOops-Team/Gitops.git)입니다 (ADR-21: 매니페스트는 Gitops, 컨트롤러 코드는 K8s). 해당 저장소에서 configure.py로 이미지·ACME 이메일 등 실제 입력을 설정하고 검증한 뒤 push합니다. CI는 Gitops의 이미지 digest만 갱신하도록 연결합니다.
-Argo CD에 비공개 repo 읽기 자격증명과 EKS 3개를 eks-a/eks-b/eks-c 이름으로 등록합니다. CLI 등록은 별도 관리 환경에서 수행하며 토큰·키는 Git에 넣지 않습니다. Argo CD cluster credential과 MultiKueue 전용 kubeconfig는 별도입니다.
+Argo CD에 비공개 repo 읽기 자격증명을 등록합니다. EKS A/B/C(eks-a/eks-b/eks-c)의 Argo CD 클러스터 Secret과 MultiKueue kubeconfig는 Terraform `terraform/eks`가 EKS를 만들고 지울 때 함께 등록 · 삭제합니다 (GPU-142). 토큰 · 키는 Git에 넣지 않습니다.
 bootstrap.local.yml의 gitops_repo_url과 gitops_root_dir(실행 머신의 Gitops/bootstrap/onprem 절대 경로)를 맞춥니다. 부모 Git 저장소의 origin을 자동 사용하지 않습니다.
 
 ## 4. Secret·root 등록
@@ -52,7 +52,7 @@ bootstrap.local.yml의 gitops_repo_url과 gitops_root_dir(실행 머신의 Gitop
 .venv/bin/ansible-playbook playbooks/bootstrap/register-root.yml -e @bootstrap.local.yml
 ```
 
-EKS registry와 MultiKueue credential은 별도 playbooks/eks/seed-registry.yml 및 playbooks/onprem/register-worker-credential.yml에서 EKS별로 등록합니다. 해당 인증 파일은 CA·token 또는 내장 인증서가 있어야 하고 exec/auth-provider·외부 파일 의존성을 거부합니다. 유효기간·갱신은 별도 관리합니다.
+EKS registry · MultiKueue credential · Argo CD 클러스터 등록은 Terraform `terraform/eks`가 EKS 생성 · 삭제 때 함께 처리합니다 (GPU-142).
 부트스트랩은 Secret 등록을 위해 없는 namespace만 생성하며, 이후 namespace의 원하는 상태는 Gitops 레포가 관리합니다. 자동으로 Cloudflare token을 추정하거나 빈 값을 저장하지 않습니다.
 site.yml은 MAP 확인 → Argo 설치 → Secret → root 등록을 묶습니다. 모든 실제 입력·접근 권한이 준비된 후에만 사용합니다. Cloudflare 외부 공개는 별도 단계입니다.
 
@@ -81,7 +81,7 @@ VM 검사·설치·실제 장애 전환, 외부 DNS·pfSense 전달, API/IAM 권
 
 ## 온프레미스/EKS 실행 분리
 
-site.yml은 onprem/site.yml만 호출합니다. 온프레미스 bootstrap은 EKS API를 조회하거나 Secret을 쓰지 않습니다. EKS별 입력과 읽기 전용 점검·적용 진입점은 [EKS.md](EKS.md)를 따릅니다.
+site.yml은 onprem/site.yml만 호출합니다. 온프레미스 bootstrap은 EKS API를 조회하거나 Secret을 쓰지 않습니다. EKS 쪽 등록(MultiKueue · Argo CD · ghcr-pull)은 Terraform `terraform/eks`가 EKS를 만들고 지울 때 함께 합니다 ([terraform/docs/EKS-HUB-REGISTRATION.md](../terraform/docs/EKS-HUB-REGISTRATION.md)).
 
 
 외부 진입점의 pfSense TCP443 포트 전달은 `playbooks/network/configure-pfsense-edge.yml`로 별도 적용합니다. 설치·연결 입력·단일 워커 진입점의 제한은 [EDGE.md](EDGE.md)를 확인합니다.

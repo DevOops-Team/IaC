@@ -1,0 +1,74 @@
+# prod 환경 설정 (GPU-171). live/base · live/eks가 이 파일을 읽어 모듈에 넣는다.
+# 계정 ID는 여기 없다: 실행할 때 aws sts로 읽고, 이름은 <project>-<env>-<용도>-<account>-<region>으로 만든다.
+# 공인 IP처럼 레포에 두면 안 되는 값은 live/<root>/terraform.local.tfvars(Git 제외)에 둔다.
+
+project: devoops
+environment: prod
+region: us-east-2
+
+# ---------------------------------------------------------------- base: 영속 데이터
+storage:
+  # 학습 코드 · 데이터셋 · 체크포인트(jobs/) · DB 백업(backups/db/). 이름: <prefix>-ckpt-<account>-<region>
+  checkpoint:
+    suffix: ckpt
+    versioning: true
+    bucket_owner_enforced: true
+    lifecycle_rules:
+      - id: database-backups-30-days            # GPU-128 / ADR-31
+        prefix: backups/db/
+        expiration_days: 30
+        noncurrent_expiration_days: 30
+      - id: database-backups-expired-delete-markers
+        prefix: backups/db/
+        expired_object_delete_marker: true
+  # Mimir · Loki · Tempo 장기 저장. 보존은 각 앱이 관리한다 (일괄 만료 규칙 넣지 않음)
+  monitoring:
+    suffix: monitoring
+    versioning: false
+    bucket_owner_enforced: false
+    lifecycle_rules:
+      - id: abort-incomplete-multipart-uploads
+        abort_incomplete_multipart_days: 1
+
+# 체크포인트 세대 · 승인 · 하트비트 (ADR-6). 이름: <prefix>-fencing
+fencing_table:
+  hash_key: job_id
+  pitr_days: 35
+
+# ---------------------------------------------------------------- base: 온프레 → AWS 인증
+# 워크로드 목록. 인증서 CN = <prefix>-<이름> (bootstrap/certs.sh). 권한은 live/base/onprem-roles.tf
+onprem_workloads: [backend, recovery, relocator, multikueue, db-backup, mimir, loki, tempo]
+
+# ---------------------------------------------------------------- base: 네트워크
+network:
+  enabled: true            # false로 apply하면 VPC · NAT · VPN을 지운다 (EKS를 먼저 지울 것). NAT+VPN은 시간당 과금
+  cidr: 172.28.0.0/16
+  subnets:                 # AZ => 서브넷. NAT는 정렬한 첫 AZ, EKS 클러스터는 az_index로 AZ를 고른다
+    us-east-2a: { public_cidr: 172.28.10.0/24, private_cidr: 172.28.64.0/20 }
+    us-east-2b: { public_cidr: 172.28.20.0/24, private_cidr: 172.28.80.0/20 }
+    us-east-2c: { public_cidr: 172.28.30.0/24, private_cidr: 172.28.96.0/20 }
+  vpn:                     # customer_gateway_ip(온프레 공인 IP)는 live/base/terraform.local.tfvars
+    customer_gateway_asn: 65010   # pfSense BGP
+    amazon_side_asn: 64512
+
+# ---------------------------------------------------------------- eks
+eks:
+  kubernetes_version: "1.35"
+  topology: test           # test | full. run.sh --topology로 덮어쓴다
+  onprem_cidr: 172.30.0.0/24   # EKS API에 붙는 온프레 대역 (VPN 경유)
+  cpu:                     # 클러스터마다 시스템 CPU 노드 1대 (On-Demand)
+    instance_type: t3.large
+    disk_size: 30
+  clusters:                # 이름 eks-<키>. az_index: network.subnets를 정렬한 순서
+    a: { service_cidr: 10.100.0.0/16, az_index: 0 }
+    b: { service_cidr: 10.101.0.0/16, az_index: 1 }
+    c: { service_cidr: 10.102.0.0/16, az_index: 2 }
+  topologies:              # GPU는 모두 Spot, 최소 = 희망 = 최대로 고정 (ADR-25, Karpenter 없음)
+    test:                  # g4dn.xlarge 2대 = 8 vCPU (Spot G/VT 쿼터 안)
+      clusters: [a, b]
+      gpu_instance_types: [g4dn.xlarge]
+      gpu: { a: { training: 2, spare: 0 }, b: { training: 0, spare: 0 } }
+    full:                  # 15대. 쿼터 확인 뒤에만
+      clusters: [a, b, c]
+      gpu_instance_types: [g4dn.xlarge, g4dn.2xlarge]
+      gpu: { a: { training: 4, spare: 1 }, b: { training: 4, spare: 1 }, c: { training: 4, spare: 1 } }
