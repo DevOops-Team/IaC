@@ -22,7 +22,7 @@
 
 ## GPU 그룹의 설정 위치
 
-`terraform/eks/eks.tf`에서 프로필별 수량과 AZ, 허용 유형을 정한다. `modules/eks/gpu-nodes.tf`가 그룹별 IAM·Launch Template·Managed Node Group을 만든다.
+`terraform/config/prod.yaml`의 `eks.topologies`(프로필별 수량 · 허용 유형)와 `eks.clusters`(Service CIDR · AZ 순번)에서 정하고, `live/eks/clusters.tf`가 클러스터마다 모듈을 부른다. `modules/eks/nodes-gpu.tf`가 그룹별 IAM·Launch Template·Managed Node Group을 만든다.
 
 - test 허용 유형은 g4dn.xlarge(4vCPU/16GiB/T4 1장) 하나로 제한. full은 여기에 g4dn.2xlarge(8vCPU/32GiB/T4 1장)도 허용. 어느 유형이 선택돼도 인스턴스 1대=GPU 1장. full에서는 CPU/RAM이 달라질 수 있으므로 JobSet 요청량을 작은 유형에서도 실행 가능한지 검토해야 한다.
 - 모두 SPOT. EKS 관리형 그룹/ASG의 할당 전략이 지정 AZ와 유형 범위에서 공급한다. 온디맨드 자동 fallback 없음. 유형 순서를 xlarge 우선 보장으로 해석하지 않는다.

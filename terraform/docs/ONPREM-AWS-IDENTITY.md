@@ -20,8 +20,8 @@ names must be synchronized between these roots.
 
 macOS · Linux: `bootstrap/certs.sh` (기본 backend · mimir · loki · tempo, 60일, 이미 있는 인증서는 건너뜀,
 `--renew`는 같은 키로 재발급, `--status`는 만료일). 기존 CA가 없으면 `--init-ca`를 명시해야 새 CA를 만든다.
-새 CA로 identity를 apply하면 trust anchor가 바뀌어 옛 CA로 발급한 인증서는 모두 무효가 된다.
-`terraform/run.sh apply identity`는 `CA_CERT`(기본 `~/.devoops/rolesanywhere/prod/ca.pem`)를 넘긴다.
+새 CA로 base를 apply하면 trust anchor가 바뀌어 옛 CA로 발급한 인증서는 모두 무효가 된다.
+`terraform/run.sh apply base`는 `CA_CERT`(기본 `~/.devoops/rolesanywhere/prod/ca.pem`)를 넘긴다.
 
 Windows: 아래 PowerShell 스크립트 (같은 PKI 디렉터리 구조).
 

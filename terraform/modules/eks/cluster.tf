@@ -22,7 +22,7 @@ resource "aws_vpc_security_group_ingress_rule" "onprem_api" {
 resource "aws_eks_cluster" "this" {
   name     = var.cluster_name
   version  = var.kubernetes_version
-  role_arn = aws_iam_role.cluster.arn
+  role_arn = module.cluster_role.arn
 
   # 기본 애드온은 다음 단계에서 관리형 애드온으로 명시적으로 구성
   bootstrap_self_managed_addons = false
@@ -47,7 +47,7 @@ resource "aws_eks_cluster" "this" {
   }
 
   depends_on = [
-    aws_iam_role_policy_attachment.cluster
+    module.cluster_role,
   ]
 
   tags = {

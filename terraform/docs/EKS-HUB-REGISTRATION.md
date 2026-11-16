@@ -1,6 +1,6 @@
 # EKS ↔ 온프레 허브 등록 (GPU-142)
 
-`terraform/eks`가 EKS를 만들 때 온프레 관리 클러스터(허브)에 그 EKS를 함께 등록하고, EKS를 지울 때 등록도 함께 지운다. 2026-11-12 GPU-127 E2E 때 스크립트로 직접 등록해 동작을 확인한 형식을 그대로 옮겼다. GPU-126 계약과 이름이 다른 부분(SA `multikueue-sa`)은 이 문서를 따른다.
+`terraform/live/eks`가 EKS를 만들 때 온프레 관리 클러스터(허브)에 그 EKS를 함께 등록하고, EKS를 지울 때 등록도 함께 지운다. 2026-11-12 GPU-127 E2E 때 스크립트로 직접 등록해 동작을 확인한 형식을 그대로 옮겼다. GPU-126 계약과 이름이 다른 부분(SA `multikueue-sa`)은 이 문서를 따른다.
 
 ## 무엇이 만들어지나
 
@@ -33,7 +33,7 @@ ssh k8s-master1 'cat ~/.kube/config' > ~/.kube/devoops-onprem.yaml && chmod 600 
 
 # 3) EKS로 가는 SOCKS5 프록시: run.sh --proxy가 ssh -D 1080 k8s-master1을 열고 HTTPS_PROXY를 건다
 terraform/run.sh plan  eks --proxy
-terraform/run.sh apply eks --proxy        # vpc가 먼저 있어야 한다 (eks는 vpc state를 읽음)
+terraform/run.sh apply eks --proxy        # base가 먼저 있어야 한다 (eks는 base state를 읽음)
 ```
 
 이 root를 plan하려면 위 세 가지가 항상 필요하다. 프록시가 없으면 EKS 쪽 리소스를 refresh하다 실패한다.

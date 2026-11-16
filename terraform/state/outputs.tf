@@ -3,7 +3,7 @@ output "state_bucket_name" {
 }
 
 output "state_keys" {
-  value = { for name in local.root_names : name => "${var.environment}/${name}/terraform.tfstate" }
+  value = { for name in local.root_names : name => "${local.cfg.environment}/${name}/terraform.tfstate" }
 }
 
 # Reference for future SSO permission sets/CI roles. It is not attached to any
@@ -21,14 +21,14 @@ output "backend_access_policy_json" {
         Effect = "Allow"
         Action = ["s3:GetObject", "s3:PutObject"]
         Resource = [
-          for name in local.root_names : "${aws_s3_bucket.state.arn}/${var.environment}/${name}/terraform.tfstate"
+          for name in local.root_names : "${aws_s3_bucket.state.arn}/${local.cfg.environment}/${name}/terraform.tfstate"
         ]
       },
       {
         Effect = "Allow"
         Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
         Resource = [
-          for name in local.root_names : "${aws_s3_bucket.state.arn}/${var.environment}/${name}/terraform.tfstate.tflock"
+          for name in local.root_names : "${aws_s3_bucket.state.arn}/${local.cfg.environment}/${name}/terraform.tfstate.tflock"
         ]
       },
     ]

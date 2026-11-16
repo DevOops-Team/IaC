@@ -26,10 +26,8 @@ jobs:
       matrix:
         dir:
           - terraform/state
-          - terraform/data
-          - terraform/identity
-          - terraform/vpc
-          - terraform/eks
+          - terraform/live/base
+          - terraform/live/eks
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
@@ -45,7 +43,7 @@ jobs:
         run: terraform validate
         working-directory: ${{ matrix.dir }}
       - name: Managed GPU topology (mock AWS, no resources created)
-        if: matrix.dir == 'terraform/eks'
+        if: matrix.dir == 'terraform/live/eks'
         run: terraform test
         working-directory: ${{ matrix.dir }}
 
@@ -68,6 +66,8 @@ jobs:
         with:
           terraform_version: 1.17.0
           terraform_wrapper: false
+      - name: terraform fmt (roots · modules · config 포함 전체)
+        run: terraform fmt -check -recursive terraform
       - name: run.sh validate (no backend, no credentials)
         run: terraform/run.sh validate
 

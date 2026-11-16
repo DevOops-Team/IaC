@@ -1,8 +1,8 @@
 locals {
   state_bucket_name = "${local.name_prefix}-tfstate-${local.account_id}-${local.region}"
-  # state 키 이름 (run.sh의 STATE_KEY와 같아야 한다). 이 root의 키는 예전 이름 bootstrap을 유지하고,
-  # network는 vpc · eks로 나뉘기 전 키라 남은 기록을 지키려고 둔다.
-  root_names = ["bootstrap", "data", "identity", "network", "vpc", "eks"]
+  # state 키 이름 (run.sh의 state_key와 같아야 한다). 이 root의 키는 처음 이름 bootstrap을 유지한다.
+  # data · identity는 11/16 live/base로 합치기 전 키라 남은 기록을 지키려고 둔다.
+  root_names = ["bootstrap", "base", "eks", "data", "identity"]
 }
 
 resource "aws_s3_bucket" "state" {
@@ -65,7 +65,7 @@ resource "aws_s3_bucket_policy" "state" {
         Principal = "*"
         Action    = ["s3:DeleteObject", "s3:DeleteObjectVersion"]
         Resource = [
-          for name in local.root_names : "${aws_s3_bucket.state.arn}/${var.environment}/${name}/terraform.tfstate"
+          for name in local.root_names : "${aws_s3_bucket.state.arn}/${local.cfg.environment}/${name}/terraform.tfstate"
         ]
       },
     ]

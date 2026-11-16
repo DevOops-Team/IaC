@@ -13,11 +13,11 @@ resource "aws_eks_addon" "vpc_cni" {
 
   pod_identity_association {
     service_account = "aws-node"
-    role_arn        = aws_iam_role.vpc_cni.arn
+    role_arn        = module.vpc_cni_role.arn
   }
 
   depends_on = [
-    aws_iam_role_policy_attachment.vpc_cni,
+    module.vpc_cni_role,
     aws_eks_addon.pod_identity_agent,
   ]
 }

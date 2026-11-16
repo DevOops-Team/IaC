@@ -12,8 +12,8 @@ Training workload rollout and runtime access checks are pending.
 
 ## Ownership and connection
 
-`terraform/data` owns persistent storage, independently of the EKS lifecycle.
-`terraform/eks` and `modules/eks` own the training role, inline permissions
+`terraform/live/base` owns persistent storage, independently of the EKS lifecycle.
+`terraform/live/eks` and `modules/eks` (`role/`) own the training role, inline permissions
 and AWS Pod Identity association. Storage ARNs in the EKS module call match the data
 root names; update both roots together if those names change. Planning does not
 require storage to have been created. Storage must exist before running jobs.

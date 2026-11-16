@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # 온프레 워크로드가 IAM Roles Anywhere로 AWS에 붙을 때 쓰는 클라이언트 인증서를 발급한다 (GPU-171, GPU-156).
-# Terraform identity root보다 먼저 실행한다: identity의 trust anchor가 여기의 CA 공개 인증서(ca.pem)를 믿는다.
+# Terraform base root보다 먼저 실행한다: base의 Roles Anywhere trust anchor가 여기의 CA 공개 인증서(ca.pem)를 믿는다.
 #
 #   기본 대상: backend mimir loki tempo   (그 밖: recovery relocator multikueue db-backup)
-#   유효기간: 60일 (--days로 바꿈)        CN: <project>-<env>-<workload>  (identity 역할 trust 조건과 같음)
+#   유효기간: 60일 (--days로 바꿈)        CN: <project>-<env>-<workload>  (base 역할 trust 조건과 같음)
 #
 #   PKI 디렉터리(기본 ~/.devoops/rolesanywhere/prod, 레포 밖, 권한 700)
 #     ca.key  ca.pem                         CA (2년). ca.key는 이 PC 밖으로 내보내지 않는다
@@ -15,7 +15,7 @@
 #   bootstrap/certs.sh --init-ca             # CA가 없을 때만: 새 CA를 만든다
 #   bootstrap/certs.sh --status              # 발급된 인증서와 만료일만 본다
 #
-# 새 CA를 만들고 identity를 apply하면 trust anchor가 새 CA로 바뀌어, 옛 CA로 발급한 인증서
+# 새 CA를 만들고 base를 apply하면 trust anchor가 새 CA로 바뀌어, 옛 CA로 발급한 인증서
 # (다른 PC에서 발급한 것 포함)는 모두 쓸 수 없게 된다. 이미 CA가 있으면 그 ca.key · ca.pem을
 # 이 PKI 디렉터리로 안전하게 복사해 쓴다. Windows용 같은 동작: scripts/rolesanywhere/New-WorkloadCertificate.ps1
 set -euo pipefail
@@ -99,7 +99,7 @@ subjectKeyIdentifier = hash
 EOF
   "$OPENSSL" req -x509 -newkey rsa:3072 -nodes -sha256 -days "$CA_DAYS" -config "$cfg" \
     -keyout "$CA_KEY" -out "$CA_CERT" 2>/dev/null
-  echo "CA: 새로 만듦 (${CA_DAYS}일). identity를 apply하면 trust anchor가 이 CA로 바뀝니다"
+  echo "CA: 새로 만듦 (${CA_DAYS}일). base를 apply하면 trust anchor가 이 CA로 바뀝니다"
 fi
 "$OPENSSL" x509 -in "$CA_CERT" -noout -checkend $((DAYS*86400)) >/dev/null \
   || die "CA가 ${DAYS}일 안에 만료됩니다. CA 갱신이 먼저입니다"
@@ -146,8 +146,8 @@ echo
 cat <<EOF
 
 다음:
-  1. Terraform identity: CA_CERT=$CA_CERT terraform/run.sh apply identity
+  1. Terraform base: CA_CERT=$CA_CERT terraform/run.sh apply base
   2. 워크로드마다 client.pem · client.key만 안전한 경로로 넘긴다 (ca.key는 넘기지 않음)
-     역할 · profile · trust anchor ARN: terraform/run.sh output identity -- workloads
+     역할 · profile · trust anchor ARN: terraform/run.sh output base -- workloads
   3. 만료 전에 --renew로 다시 발급하고 Secret을 바꾼다 (--status로 만료일 확인)
 EOF
