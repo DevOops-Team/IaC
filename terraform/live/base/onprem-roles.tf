@@ -12,6 +12,13 @@ locals {
           Resource = ["${local.checkpoint_arn}/code/*", "${local.checkpoint_arn}/datasets/*"]
         },
         {
+          # 잡 상세: code/<id>/config.json 읽기 · 제출 파일 미리보기 (Backend job.go, GPU-185). 목록 · 삭제 없음
+          Sid      = "ReadSubmission"
+          Effect   = "Allow"
+          Action   = "s3:GetObject"
+          Resource = "${local.checkpoint_arn}/code/*"
+        },
+        {
           Sid      = "CreateAndReadInitialFencing"
           Effect   = "Allow"
           Action   = ["dynamodb:PutItem", "dynamodb:GetItem"]
