@@ -1,6 +1,0 @@
-- name: Check one EKS via AWS and Kubernetes APIs
-  hosts: localhost
-  connection: local
-  gather_facts: false
-  roles:
-  - eks-preflight

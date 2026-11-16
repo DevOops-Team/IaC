@@ -53,28 +53,8 @@ terraform/run.sh plan eks --topology full --proxy
 
 두 프로필은 **동일 state/동일 prod 리소스 이름**을 사용한다. 서로 독립된 환경을 동시에 만드는 용도가 아니다. full→test는 C 삭제·A 축소·예비 삭제를 포함할 수 있다. 저장 plan의 적용은 선택한 프로필을 정확히 검토한 뒤 별도 실행한다.
 
-## 기존 Karpenter에서 이관 전 점검
-
-1. 실행 중 학습/예약/재배치가 없는지, 기존 NodePool·NodeClaim·EC2 목록과 데이터 보존 위치 확인.
-2. 신규 GPU 그룹 준비와 NVIDIA 플러그인의 두 taint 허용 확인. Kueue·JobSet Gitops overlay는 Managed Node Group 라벨을 사용하도록 담당자와 조정. test는 train quota2/예비0, full은 train4/예비1.
-3. 기존 GPU를 옮기거나 비운 뒤 **Karpenter가 살아 있는 동안** 기존 NodePool/NodeClaim과 실제 EC2 정리 확인. finalizer 강제 제거 금지. 기존 GPU가 새 노드그룹에 자동 편입되지 않는다.
-4. 기존 Karpenter Helm/controller와 Pod Identity 참조를 정리할 순서 확인 후 Terraform 삭제 계획 검토. 제거된 module.karpenter_a의 IAM·SQS·EventBridge는 state에 있으면 destroy로 표시된다. IAM부터 없애면 기존 GPU 정리가 막힐 수 있다.
-5. 관리형 Spot 그룹의 AWS Capacity Rebalancing과 학습 앱의 회수 예고/체크포인트/relocator 처리 연결을 쿠버·복구 담당자와 확인. 기존 Karpenter SQS 소비 경로가 남아 있다고 가정하지 않는다.
-
-위는 이관 전 점검 기록이며 자동 실행 절차가 아니다. 사용자 요청으로 scripts/infra는 수정/실행하지 않았다. 예전 스크립트는 Karpenter output/NodePool을 참조하므로 현재 코드에 사용하지 않는다.
-
 ## 검증
 
-2026-11-11 실제 AWS state와 비교한 plan(적용 없음):
-
-| 루트/프로필 | 생성 | 변경 | 삭제 |
-| --- | --- | --- | --- |
-| network/test | 31 | 1 | 20 |
-| network/full | 67 | 1 | 20 |
-| identity | 0 | 2 | 0 |
-
-network의 삭제20개는 기존 module.karpenter_a의 IAM·Pod Identity·Access Entry·SQS·EventBridge 자원. 기존 EKS A 재생성 없음. 변경1개는 콘솔에서0대로 줄인 CPU 그룹을 코드의1대로 복원하는 계획. identity의2개는 relocator/MultiKueue DescribeCluster 리소스를 A/B/C로 확장하는 인라인 정책. plan은 저장/적용하지 않았으며 후속 요구사항 확정 뒤 새로 검토해야 한다.
-
-`terraform init -backend=false`, fmt/validate, AWS를 mock한 `terraform test`로 test/full 두 프로필의 수량·Spot·허용유형·AZ·예비 분리·Service CIDR·NVIDIA toleration을 검사한다. mock test는 AWS 리소스를 생성하지 않는다. 실제 GPU Ready·애플리케이션 장애복구 E2E는 배포 후 별도 검증 대상.
+`terraform/run.sh validate`, fmt, AWS를 mock한 `terraform test`로 test/full 두 프로필의 수량·Spot·허용유형·AZ·예비 분리·Service CIDR·NVIDIA toleration을 검사한다. mock test는 AWS 리소스를 생성하지 않는다. 실제 GPU Ready·애플리케이션 장애복구 E2E는 배포 후 별도 검증 대상.
 
 공식 근거: [EKS 관리형 노드 그룹](https://docs.aws.amazon.com/eks/latest/userguide/managed-node-groups.html), [GPU 노드 그룹](https://docs.aws.amazon.com/eks/latest/userguide/ml-node-groups.html), [업데이트 동작](https://docs.aws.amazon.com/eks/latest/userguide/managed-node-update-behavior.html).

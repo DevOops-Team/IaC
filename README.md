@@ -24,14 +24,14 @@ gpu-iac/
 │  │  ├─ network/         # 외부 Cloudflare DNS API
 │  │  └─ site.yml         # 클러스터 설치 후 bootstrap 실행
 │  └─ roles/
-└─ scripts/               # pfSense 정책 · Windows용 인증서 발급 (scripts/infra는 옛 계정 · Karpenter 흐름, 쓰지 않음)
+└─ scripts/               # pfSense VPN 인바운드 정책 · Windows용 인증서 발급
 ```
 
-앱 Deployment·Service·RBAC, Traefik·cert-manager values, frontend Ingress·웹 인증서, EKS 큐·MultiKueue 연결 객체는 형제 폴더 gpu-k8s로 이동했습니다. 이 저장소에서 해당 리소스를 반복 적용하지 않습니다.
+앱 Deployment·Service·RBAC, Traefik·cert-manager values, frontend Ingress·웹 인증서, EKS 큐·MultiKueue 연결 객체는 Gitops 레포(DevOops-Team/Gitops)가 관리합니다. 이 저장소에서 해당 리소스를 반복 적용하지 않습니다.
 
-Cloudflare DNS-only 레코드는 bootstrap이 관리하며, HTTPS는 gpu-k8s의 Traefik·cert-manager가 처리합니다. 공인 IP → pfSense TCP 전달 → Traefik 경로를 먼저 검증합니다. Kubernetes VM·API VIP·CoreDNS·MAP는 Kubespray가 관리합니다. Kueue·JobSet 컨트롤러는 스케줄링 파트 담당입니다.
+Cloudflare DNS-only 레코드는 bootstrap이 관리하며, HTTPS는 Gitops의 Traefik·cert-manager가 처리합니다. 공인 IP → pfSense TCP 전달 → Traefik 경로를 먼저 검증합니다. Kubernetes VM·API VIP·CoreDNS·MAP는 Kubespray가 관리합니다. Kueue·JobSet 컨트롤러는 스케줄링 파트 담당입니다.
 
-실행 순서는 [ansible/PROJECT.md](ansible/PROJECT.md)를 확인합니다. 두 폴더를 각각 VS Code로 열어 사용할 수 있고, *.code-workspace는 각 폴더만 포함합니다.
+온프레미스 실행 순서는 [ansible/PROJECT.md](ansible/PROJECT.md)를 확인합니다.
 
 ## AWS Terraform
 
@@ -69,7 +69,7 @@ terraform/run.sh validate                       # 자격 증명 없이 문법 �
 
 ## EKS GPU 관리형 노드 그룹
 
-Karpenter를 제거하고 GPU는 EKS Managed Node Group으로 관리합니다. **현재 기본값은 소규모 테스트 프로필**이며, 환경/리소스 이름은 계속 prod를 사용합니다.
+GPU는 EKS Managed Node Group으로 관리합니다 (Karpenter 안 씀, ADR-25). **현재 기본값은 소규모 테스트 프로필**이며, 환경/리소스 이름은 계속 prod를 사용합니다.
 
 | 프로필 | 클러스터 | 시스템 CPU (On-Demand) | GPU (모두 Spot) |
 | --- | --- | --- | --- |
@@ -82,15 +82,12 @@ test는 `g4dn.xlarge` 2대(총 8vCPU)만 허용합니다. full은 `g4dn.xlarge`�
 - 인프라 상한/유형/배치와 실행 전 조건: [관리형 GPU 구성·전환 안내](terraform/docs/MANAGED-GPU.md).
 - NVIDIA 플러그인 설정은 `terraform/run.sh output eks -- -json gpu_bootstrap`, 클러스터별 endpoint·Pod Identity·GPU 그룹은 `terraform/run.sh output eks -- -json eks_clusters`로 전달합니다. 플러그인 설치와 Kueue·JobSet·큐/RBAC는 쿠버 담당자가 GitOps에서 관리합니다.
 - 예비 그룹만 `devoops/spare=true:NoSchedule` taint를 가집니다. NVIDIA 플러그인은 GPU·예비 taint 모두 허용합니다. 일반 학습에는 예비 toleration을 주지 않습니다.
-- Karpenter 제거는 **코드 변경**이며 기존 Helm/NodePool/NodeClaim을 자동 삭제하지 않습니다. 실제 apply 전에 안전한 이관과 GPU 할당량 검증이 필요합니다.
-- **사용자 요청으로 ON/OFF 스크립트 작업은 중단했습니다.** 기존 scripts/infra는 Karpenter 기반의 예전 흐름이며 이 구성에 사용하지 않습니다. 이번 변경에서 해당 파일들은 수정하지 않았습니다.
+- 비용을 줄일 때는 `terraform/run.sh destroy`(eks → vpc)로 끄고 `apply vpc eks`로 다시 켭니다. GPU 할당량(us-east-2 G/VT Spot 40 vCPU)은 apply 전에 확인합니다.
 
 ## 장애 감지·서비스 복구
 
 ADR-11에 따라 개인 PC에서 `ansible/playbooks/recovery/`, `ansible/scripts/recovery/`를 필요할 때 수동 실행합니다. 전용 VM·상시 복구 timer는 사용하지 않습니다. 기본은 관찰 전용이며 설치/부트스트랩 site.yml과 분리합니다. [RECOVERY.md](ansible/RECOVERY.md)를 확인합니다.
 
-## EKS별 설정
+## EKS ↔ 온프레 허브 등록
 
-수동 비용 관리 ON/OFF 스크립트와 준비 조건은 [scripts/infra/README.md](scripts/infra/README.md) 참고. 스케줄링 배포 절차 연결 및 통합 검증 전에는 운영 ON/OFF 실행을 중단합니다.
-
-온프레미스 기본 실행과 EKS별 실행을 분리했습니다. `ansible/environments/eks/`의 A/B/C 예시와 `playbooks/eks/`를 사용합니다. AWS 자원은 읽기 전용으로 점검하고 큐 설정은 gpu-k8s의 eks/<alias>가 관리합니다. [EKS 안내](ansible/EKS.md).
+EKS를 만들고 지울 때 온프레 관리 클러스터 등록(Argo CD 클러스터 Secret, MultiKueue kubeconfig, EKS의 `multikueue-sa` · `argocd-manager` · `training/ghcr-pull`)도 `terraform/eks`가 함께 만들고 지웁니다. 큐 · ApplicationSet은 Gitops가 관리합니다. [허브 등록 안내](terraform/docs/EKS-HUB-REGISTRATION.md).

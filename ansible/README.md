@@ -1,7 +1,7 @@
 # IaC Ansible
 
 ADR-11에 따라 개인 PC에서 필요할 때 수동으로 VM 6대 공통 준비·Kubespray Kubernetes HA·API VIP·CoreDNS·MAP와 Argo CD bootstrap을 관리합니다. 전용 Ansible VM과 상시 점검 timer는 사용하지 않습니다.
-앱·클러스터 내 일반 리소스는 gpu-k8s로 이동했고 기존 apps/edge/render 플레이북 및 리소스 적용 role은 제거했습니다.
+앱·클러스터 내 일반 리소스는 Gitops 레포로 이동했고 기존 apps/edge/render 플레이북 및 리소스 적용 role은 제거했습니다.
 
 | 영역 | 플레이북 |
 |---|---|
@@ -22,4 +22,4 @@ ADR-11에 따라 개인 PC에서 필요할 때 수동으로 VM 6대 공통 준�
 
 ## 온프레미스/EKS 실행 분리
 
-site.yml은 onprem/site.yml만 호출합니다. 온프레미스 bootstrap은 EKS API를 조회하거나 Secret을 쓰지 않습니다. EKS별 입력과 읽기 전용 점검·적용 진입점은 [EKS.md](EKS.md)를 따릅니다.
+site.yml은 onprem/site.yml만 호출합니다. 온프레미스 bootstrap은 EKS API를 조회하거나 Secret을 쓰지 않습니다. EKS 쪽 등록(MultiKueue · Argo CD · ghcr-pull)은 Terraform `terraform/eks`가 EKS를 만들고 지울 때 함께 합니다 ([terraform/docs/EKS-HUB-REGISTRATION.md](../terraform/docs/EKS-HUB-REGISTRATION.md)).

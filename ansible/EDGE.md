@@ -7,13 +7,13 @@ HTTPS: 사용자 → 공인 IP:443 → 라우터 → pfSense WAN/VIP의 TCP443 �
 ```
 
 - gpu-iac: Cloudflare DNS 레코드. Tunnel·host route·커넥터 Secret 생성은 제거했다.
-- gpu-k8s: Traefik NodePort·cert-manager·Certificate·Ingress. DNS01 발급용 Secret은 유지한다.
+- Gitops: Traefik NodePort·cert-manager·Certificate·Ingress. DNS01 발급용 Secret은 유지한다.
 - gpu-iac의 configure-pfsense-edge.yml: pfSense TCP443 → 지정한 워커:30443 NAT와 연계 방화벽 허용 규칙.
 - 네트워크 담당: pfSense 설치·인터페이스/VIP·라우터 TCP443 전달·노드 반환 경로·노드 방화벽. 설치된 pfSense와 SSH/Python이 필요하다.
 
 ## 적용
 
-1. gpu-k8s Traefik을 먼저 sync한다. 아래 pfSense 플레이북으로 지정한 워커 IP:30443에 전달한다. NAT는 클라이언트 원본 IP를 유지하므로 노드 반환 경로가 pfSense를 지나야 한다. 노드 30443의 허용 소스는 실제 클라이언트/상위 라우터 NAT 방식에 맞춰 정하고 인터넷에서 노드로 직접 진입하는 경로는 차단한다. HTTP 80·대시보드는 공개하지 않는다.
+1. Gitops Traefik을 먼저 sync한다. 아래 pfSense 플레이북으로 지정한 워커 IP:30443에 전달한다. NAT는 클라이언트 원본 IP를 유지하므로 노드 반환 경로가 pfSense를 지나야 한다. 노드 30443의 허용 소스는 실제 클라이언트/상위 라우터 NAT 방식에 맞춰 정하고 인터넷에서 노드로 직접 진입하는 경로는 차단한다. HTTP 80·대시보드는 공개하지 않는다.
 2. 외부 네트워크에서 `curl --resolve devoops.site:443:PUBLIC_IP https://devoops.site/`로 기존 인증서를 포함한 응답을 확인한다. `-k`는 사용하지 않는다. 인증서는 Traefik이 처리하므로 pfSense TLS 종료·별도 인증서 발급은 하지 않는다.
 3. bootstrap.example.yml을 개인 설정 파일로 복사하고 manager_context·cloudflare_zone_id·edge_public_ip를 채운다. 확인 후에만 edge_dns_confirmed: true로 지정한다. 공인 IP가 없거나 443 인바운드가 차단되어 있으면 전환할 수 없다.
 4. 환경변수 CLOUDFLARE_DNS_API_TOKEN을 설정한다. 대상 Zone의 DNS 편집 권한만 필요하며 Tunnel/Account 권한은 사용하지 않는다. 기존 DNS01 발급 토큰의 용도도 유지한다. 토큰은 Git에 넣지 않는다.
@@ -27,7 +27,7 @@ DNS-only(proxied=false), TTL 기본 300초다. 동일 설정은 변경하지 않
 
 ## 기존 Tunnel 정리와 롤백
 
-새 경로 검증·DNS 전환·기존 캐시 만료까지 기존 Tunnel을 유지한다. 이후 gpu-k8s docs/dns-entrypoint.md에 따라 Argo Application·Deployment/PDB·token Secret·빈 namespace를 명시적으로 정리한다. prune 비활성 상태에서는 Git 삭제만으로 실제 리소스가 없어지지 않는다. 다른 hostname이 사용하지 않는지 확인하고 Cloudflare Tunnel·전용 토큰도 폐기한다. 이 플레이북은 기존 Tunnel을 자동 삭제하지 않는다.
+새 경로 검증·DNS 전환·기존 캐시 만료까지 기존 Tunnel을 유지한다. 이후 Gitops 문서에 따라 Argo Application·Deployment/PDB·token Secret·빈 namespace를 명시적으로 정리한다. prune 비활성 상태에서는 Git 삭제만으로 실제 리소스가 없어지지 않는다. 다른 hostname이 사용하지 않는지 확인하고 Cloudflare Tunnel·전용 토큰도 폐기한다. 이 플레이북은 기존 Tunnel을 자동 삭제하지 않는다.
 
 롤백은 백업한 DNS 레코드로 복원한다. Tunnel을 삭제했다면 이전 Git 구성과 커넥터 자격증명도 먼저 복원해야 한다. 실제 외부 연결과 DNS 변경은 운영 환경에서 별도로 실행·검증한다.
 

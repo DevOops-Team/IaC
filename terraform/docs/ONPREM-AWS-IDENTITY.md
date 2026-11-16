@@ -133,7 +133,7 @@ network declares IAM access entries for:
 - onprem-relocator → Kubernetes group `devoops:relocator`
 
 These groups grant no Kubernetes operations until scoped Role/ClusterRole
-bindings are installed by gpu-k8s. No cluster-admin policy is attached. IAM
+bindings are installed by the Gitops repo. No cluster-admin policy is attached. IAM
 DescribeCluster is discovery, not permission to create/delete Kubernetes objects.
 There is currently one EKS cluster; do not reference three uncreated workers.
 

@@ -34,8 +34,6 @@ ansible/.state/
 # Local VS Code settings
 .vscode/
 
-ansible/environments/**/*.local.yml
-ansible/environments/**/*.local.yaml
 
 
 # Local Terraform inputs and saved plans
@@ -48,7 +46,6 @@ ansible/pfsense-edge.local.yml
 ansible/inventory/pfsense/hosts.local.yml
 
 # Local infrastructure lifecycle settings
-scripts/infra/config.local.json
 
 # terraform/run.sh: state 버킷을 처음 만들 때만 잠깐 생기는 로컬 backend override
 terraform/state/zz_local_backend_override.tf

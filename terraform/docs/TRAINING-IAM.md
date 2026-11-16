@@ -51,7 +51,7 @@ if encryption changes to a customer-managed KMS key.
 
 ## Kubernetes handoff (not applied)
 
-The `gpu-k8s` owner must manage this namespace and ServiceAccount through GitOps,
+The Gitops repo owner must manage this namespace and ServiceAccount through GitOps,
 and the JobSet must use `serviceAccountName: trainer` in namespace `training`.
 This is the exact required object definition, not an additional Terraform provider:
 

@@ -38,31 +38,6 @@ terraform/run.sh apply eks --proxy        # vpc가 먼저 있어야 한다 (eks�
 
 이 root를 plan하려면 위 세 가지가 항상 필요하다. 프록시가 없으면 EKS 쪽 리소스를 refresh하다 실패한다.
 
-## 기존 eks-a · eks-b 넘겨받기 (1회)
-
-11/12에 스크립트로 만든 리소스가 이미 있다. 처음 apply하기 전에 state로 가져온다. 가져오지 않으면 "already exists"로 실패한다. 토큰 Secret을 새로 만들면 토큰이 바뀌어 온프레 Secret도 다시 써지므로, 가져오는 쪽이 끊김이 없다.
-
-```sh
-for x in a b; do
-  m="module.hub_eks_${x}"
-  terraform import -var-file=terraform.local.tfvars "${m}.kubernetes_namespace_v1.this[\"kueue-system\"]" kueue-system
-  terraform import -var-file=terraform.local.tfvars "${m}.kubernetes_namespace_v1.this[\"training\"]" training
-  terraform import -var-file=terraform.local.tfvars "${m}.kubernetes_service_account_v1.multikueue" kueue-system/multikueue-sa
-  terraform import -var-file=terraform.local.tfvars "${m}.kubernetes_cluster_role_v1.multikueue" multikueue-sa-role
-  terraform import -var-file=terraform.local.tfvars "${m}.kubernetes_cluster_role_binding_v1.multikueue" multikueue-sa-crb
-  terraform import -var-file=terraform.local.tfvars "${m}.kubernetes_secret_v1.multikueue_token" kueue-system/multikueue-sa
-  terraform import -var-file=terraform.local.tfvars "${m}.kubernetes_service_account_v1.argocd_manager" kube-system/argocd-manager
-  terraform import -var-file=terraform.local.tfvars "${m}.kubernetes_cluster_role_binding_v1.argocd_manager" argocd-manager
-  terraform import -var-file=terraform.local.tfvars "${m}.kubernetes_secret_v1.argocd_manager_token" kube-system/argocd-manager-token
-  terraform import -var-file=terraform.local.tfvars "${m}.kubernetes_secret_v1.ghcr_pull" training/ghcr-pull
-  terraform import -var-file=terraform.local.tfvars "${m}.kubernetes_secret_v1.multikueue_kubeconfig" kueue-system/eks-${x}-kubeconfig
-  terraform import -var-file=terraform.local.tfvars "${m}.kubernetes_secret_v1.argocd_cluster" argocd/cluster-eks-${x}
-done
-terraform plan -var-file=terraform.local.tfvars   # 등록 쪽 변경이 없거나 라벨 · 데이터 정리 정도여야 함
-```
-
-eks-a · eks-b의 `terraform import`는 provider가 엔드포인트를 알아야 하므로 두 클러스터가 state에 이미 있어야 한다(지금 그렇다).
-
 ## 지울 때
 
 - `terraform destroy`나 프로필을 full → test로 내려 eks-c가 빠지면, 그 클러스터의 등록이 클러스터보다 먼저 지워진다(provider · 모듈 의존). 온프레 `kueue-system/<eks>-kubeconfig` · `argocd/cluster-<eks>`가 사라지면 ApplicationSet이 해당 Application을 지우고(리소스 보존 설정), `MultiKueueCluster <eks>`는 Inactive가 된다.
