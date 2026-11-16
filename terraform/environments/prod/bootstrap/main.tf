@@ -1,5 +1,5 @@
 locals {
-  state_bucket_name = "devoops-prod-tfstate-354363695096-us-east-2"
+  state_bucket_name = "devoops-prod-tfstate-947027666399-us-east-2"
   root_names        = ["bootstrap", "data", "identity", "network"]
 }
 
