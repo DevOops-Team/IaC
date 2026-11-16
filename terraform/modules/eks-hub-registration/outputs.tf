@@ -1,5 +1,5 @@
 output "onprem_secrets" {
-  description = "On-prem Secrets that register this EKS (no secret values)."
+  description = "이 EKS를 등록한 온프레 Secret 이름 (비밀값 없음)."
   value = {
     multikueue_kubeconfig = "${kubernetes_secret_v1.multikueue_kubeconfig.metadata[0].namespace}/${kubernetes_secret_v1.multikueue_kubeconfig.metadata[0].name}"
     argocd_cluster        = "${kubernetes_secret_v1.argocd_cluster.metadata[0].namespace}/${kubernetes_secret_v1.argocd_cluster.metadata[0].name}"

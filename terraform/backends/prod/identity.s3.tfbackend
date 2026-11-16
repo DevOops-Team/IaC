@@ -1,7 +1,0 @@
-bucket              = "devoops-prod-tfstate-947027666399-us-east-2"
-key                 = "prod/identity/terraform.tfstate"
-region              = "us-east-2"
-profile             = "nochan"
-allowed_account_ids = ["947027666399"]
-encrypt             = true
-use_lockfile        = true

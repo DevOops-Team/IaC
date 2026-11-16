@@ -27,7 +27,7 @@ kubelet HTTPS serving 인증서는 별개입니다. 모든 CSR 자동 승인은 
 
 ## 3. 웹 HTTPS
 
-gpu-k8s/onprem/platform/web/resources.yaml의 Certificate는 90일 요청·만료 30일 전 갱신·개인키 Always rotation을 설정했습니다. 실제 유효기간은 발급기관이 결정합니다. cert-manager → platform/frontend-tls Secret 갱신 → Kubernetes Ingress provider를 켠 Traefik이 Secret watch로 새 TLS 설정 반영. 별도 frontend/backend Pod 재시작은 필요 없습니다. Cloudflare edge 인증서는 Cloudflare 관리 영역입니다.
+Gitops 레포 웹 Certificate(cert-manager)는 90일 요청·만료 30일 전 갱신·개인키 Always rotation을 설정했습니다. 실제 유효기간은 발급기관이 결정합니다. cert-manager → platform/frontend-tls Secret 갱신 → Kubernetes Ingress provider를 켠 Traefik이 Secret watch로 새 TLS 설정 반영. 별도 frontend/backend Pod 재시작은 필요 없습니다. Cloudflare edge 인증서는 Cloudflare 관리 영역입니다.
 
 Cloudflare DNS API 토큰·실제 ACME email·DNS 권한·외부 ACME 접근·실행 중인 cert-manager/Traefik이 필요합니다. 아직 Argo 적용하지 않았으므로 파일 수정만으로 발급되지 않습니다.
 

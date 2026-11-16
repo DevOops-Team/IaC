@@ -8,12 +8,16 @@ on:
 permissions:
   contents: read
 
+env:
+  # provider(aws 약 700MB)를 job마다 받지 않도록 공유 캐시 + actions/cache (lock 파일이 바뀌면 새로 받음)
+  TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform-plugin-cache
+
 jobs:
   pfsense-policy:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Validate firewall policy scripts without firewall access
+      - name: pfSense 정책 스크립트 검사 (방화벽 접속 없이)
         run: |
           php -l scripts/pfsense/vpn-inbound.php
           php -l scripts/pfsense/tests/test-vpn-inbound.php
@@ -25,12 +29,17 @@ jobs:
       fail-fast: false
       matrix:
         dir:
-          - terraform/environments/prod/bootstrap
-          - terraform/environments/prod/data
-          - terraform/environments/prod/identity
-          - terraform/environments/prod/network
+          - terraform/state
+          - terraform/live/base
+          - terraform/live/eks
     steps:
       - uses: actions/checkout@v4
+      - name: provider cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: tf-providers-${{ runner.os }}-${{ hashFiles('terraform/**/.terraform.lock.hcl') }}
+      - run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.17.0
@@ -43,10 +52,40 @@ jobs:
       - name: validate
         run: terraform validate
         working-directory: ${{ matrix.dir }}
-      - name: Managed GPU topology (mock AWS, no resources created)
-        if: matrix.dir == 'terraform/environments/prod/network'
+      - name: GPU 토폴로지 테스트 (mock AWS, 자원 생성 없음)
+        if: matrix.dir == 'terraform/live/eks'
         run: terraform test
         working-directory: ${{ matrix.dir }}
+
+  scripts:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: bash syntax (terraform/run.sh · bootstrap/certs.sh)
+        run: bash -n terraform/run.sh && bash -n bootstrap/certs.sh
+      - name: certs.sh issues CN-matching 60-day certificates (temporary PKI)
+        run: |
+          pki="$RUNNER_TEMP/pki"
+          bootstrap/certs.sh --pki-dir "$pki" --init-ca
+          for w in backend mimir loki tempo; do
+            openssl x509 -in "$pki/$w/client.pem" -noout -subject | grep -q "CN *= *devoops-prod-$w"
+            openssl x509 -in "$pki/$w/client.pem" -noout -checkend $((59*86400))
+            ! openssl x509 -in "$pki/$w/client.pem" -noout -checkend $((61*86400))
+          done
+      - name: provider cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: tf-providers-${{ runner.os }}-${{ hashFiles('terraform/**/.terraform.lock.hcl') }}
+      - run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.17.0
+          terraform_wrapper: false
+      - name: terraform fmt (roots · modules · config 포함 전체)
+        run: terraform fmt -check -recursive terraform
+      - name: run.sh validate (no backend, no credentials)
+        run: terraform/run.sh validate
 
   python-tests:
     runs-on: ubuntu-24.04
@@ -55,10 +94,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install test deps
+      - name: 테스트 의존성 설치
         run: pip install pyyaml
-      - name: cloudflare DNS plan
-        run: python -m unittest tests/test_cloudflare_dns.py
+      - name: Cloudflare DNS 계획 테스트
+        run: python -m unittest discover -s tests -v
+        working-directory: ansible/roles/cloudflare-provider
       - name: recovery watcher
         run: python -m unittest discover -s tests
         working-directory: ansible/scripts/recovery

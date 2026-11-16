@@ -1,10 +1,10 @@
 variable "cluster_name" {
-  description = "Name of the EKS cluster."
+  description = "EKS 클러스터 이름."
   type        = string
 }
 
 variable "onprem_access_roles" {
-  description = "On-prem IAM roles mapped to Kubernetes groups; GitOps owns the scoped RBAC bindings."
+  description = "온프레 IAM 역할 => Kubernetes 그룹 (RBAC는 Gitops)."
   type = map(object({
     principal_arn     = string
     kubernetes_groups = list(string)
@@ -13,76 +13,76 @@ variable "onprem_access_roles" {
 }
 
 variable "checkpoint_bucket_arn" {
-  description = "ARN of the persistent bucket managed by the prod/data root."
+  description = "체크포인트 버킷 ARN (live/base)."
   type        = string
 }
 
 variable "fencing_table_arn" {
-  description = "ARN of the persistent fencing table managed by prod/data."
+  description = "펜싱 테이블 ARN (live/base)."
   type        = string
 }
 
 variable "project_name" {
-  description = "Project tag propagated to EC2 instances."
+  description = "EC2 인스턴스에 붙일 Project 태그."
   type        = string
 }
 
 variable "environment" {
-  description = "Environment tag propagated to EC2 instances."
+  description = "EC2 인스턴스에 붙일 Environment 태그."
   type        = string
 }
 
 variable "kubernetes_version" {
-  description = "Kubernetes version for EKS."
+  description = "EKS Kubernetes 버전."
   type        = string
   default     = "1.35"
 }
 
 variable "vpc_id" {
-  description = "VPC containing the EKS cluster."
+  description = "클러스터가 들어갈 VPC."
   type        = string
 }
 
 variable "private_subnet_ids" {
-  description = "Private subnet IDs keyed by Availability Zone."
+  description = "AZ => 프라이빗 서브넷 ID."
   type        = map(string)
 }
 
 variable "service_ipv4_cidr" {
-  description = "Kubernetes Service IPv4 CIDR."
+  description = "Kubernetes Service CIDR (클러스터마다 달라야 함)."
   type        = string
 }
 
 variable "onprem_cidr" {
-  description = "On-premises network allowed to access the private API."
+  description = "private API에 접근을 허용할 온프레 대역."
   type        = string
 }
 
 variable "admin_role_arn" {
-  description = "IAM role granted cluster administrator access."
+  description = "클러스터 관리자 권한을 받을 IAM 역할 (SSO 관리자)."
   type        = string
 }
 
 
 variable "cpu_instance_type" {
-  description = "Instance type for the system CPU node."
+  description = "시스템 CPU 노드 인스턴스 유형."
   type        = string
   default     = "t3.large"
 }
 
 variable "cpu_node_az" {
-  description = "Availability Zone for the CPU node group."
+  description = "워커 노드를 둘 AZ."
   type        = string
 }
 
 variable "cpu_disk_size" {
-  description = "CPU node root disk size in GiB."
+  description = "CPU 노드 루트 디스크 (GiB)."
   type        = number
   default     = 30
 }
 
 variable "gpu_instance_types" {
-  description = "One-T4 instance types eligible for the fixed GPU Spot node groups."
+  description = "GPU Spot 노드그룹에 허용할 유형 (T4 1장짜리)."
   type        = list(string)
   default     = ["g4dn.xlarge", "g4dn.2xlarge"]
 
@@ -92,44 +92,44 @@ variable "gpu_instance_types" {
       length(distinct(var.gpu_instance_types)) == length(var.gpu_instance_types) &&
       alltrue([for instance_type in var.gpu_instance_types : contains(["g4dn.xlarge", "g4dn.2xlarge"], instance_type)])
     )
-    error_message = "Use a nonempty, unique list drawn from g4dn.xlarge and g4dn.2xlarge (one GPU each)."
+    error_message = "g4dn.xlarge · g4dn.2xlarge 중에서 중복 없이 하나 이상 골라야 한다."
   }
 }
 
 variable "gpu_training_node_count" {
   type        = number
-  description = "Fixed desired/minimum/maximum size of the training Spot group."
+  description = "학습 GPU 그룹 대수 (최소=희망=최대)."
   default     = 4
   validation {
     condition     = var.gpu_training_node_count >= 0 && floor(var.gpu_training_node_count) == var.gpu_training_node_count
-    error_message = "Use a nonnegative whole number; zero omits the training GPU group."
+    error_message = "0 이상의 정수여야 한다. 0이면 학습 그룹을 만들지 않는다."
   }
 }
 
 variable "gpu_spare_node_count" {
   type        = number
-  description = "Fixed desired/minimum/maximum size of the spare Spot group."
+  description = "예비 GPU 그룹 대수 (최소=희망=최대)."
   default     = 1
   validation {
     condition     = var.gpu_spare_node_count >= 0 && floor(var.gpu_spare_node_count) == var.gpu_spare_node_count
-    error_message = "Use a nonnegative whole number; zero omits the spare GPU group."
+    error_message = "0 이상의 정수여야 한다. 0이면 예비 그룹을 만들지 않는다."
   }
 }
 
 variable "gpu_disk_size" {
-  description = "Encrypted ephemeral GPU node root disk in GiB; application data belongs in S3."
+  description = "GPU 노드 루트 디스크 (GiB, 암호화). 학습 데이터는 S3에 둔다."
   type        = number
   default     = 20
 }
 
 variable "gpu_ami_release_version" {
-  description = "Pinned EKS 1.35 AL2023 NVIDIA AMI release (AWS public SSM, us-east-2)."
+  description = "고정한 EKS 1.35 AL2023 NVIDIA AMI 릴리스 (AWS SSM에서 확인한 값)."
   type        = string
   default     = "1.35.9-20261107"
 }
 
 variable "addon_versions" {
-  description = "Pinned EKS add-on versions compatible with Kubernetes 1.35."
+  description = "Kubernetes 1.35와 맞춘 애드온 버전 고정."
   type        = map(string)
 
   default = {
