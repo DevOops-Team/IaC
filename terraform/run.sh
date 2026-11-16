@@ -30,6 +30,7 @@
 #   ENVIRONMENT=prod                              (config/<ENVIRONMENT>.yaml)
 #   CA_CERT=~/.devoops/rolesanywhere/<env>/ca.pem  (base의 Roles Anywhere CA 공개 인증서)
 #   ONPREM_KUBECONFIG=~/.kube/devoops-onprem.yaml   (eks 허브 등록)
+#   TF_PLUGIN_CACHE_DIR=~/.terraform.d/plugin-cache (provider 공유 캐시)
 #   TF_VAR_*                                       (그 밖의 변수)
 #   <root>/terraform.local.tfvars가 있으면 자동으로 -var-file로 넘긴다 (Git 제외, 예: customer_gateway_ip).
 set -euo pipefail
@@ -44,9 +45,12 @@ PROFILE="devoops"   # 팀 공통 프로파일 이름. 셸의 AWS_PROFILE은 쓰�
 CA_CERT="${CA_CERT:-$HOME/.devoops/rolesanywhere/$ENVIRONMENT/ca.pem}"
 ONPREM_KUBECONFIG="${ONPREM_KUBECONFIG:-$HOME/.kube/devoops-onprem.yaml}"
 export TF_IN_AUTOMATION=1 TF_VAR_environment="$ENVIRONMENT"
+# provider를 root마다 받지 않고 한 곳에 받아 링크로 쓴다 (aws provider 하나가 약 700MB)
+export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
+mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
 die() { echo "error: $*" >&2; exit 1; }
-usage() { sed -n '2,35p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 in_list() { local x="$1"; shift; for y in "$@"; do [ "$x" = "$y" ] && return 0; done; return 1; }
 stack_dir() { case "$1" in state) echo state ;; *) echo "live/$1" ;; esac; }
 # state 키 이름. state root는 처음 이름(bootstrap)을 유지한다 (state/main.tf root_names와 같아야 함).

@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # provider(aws 약 700MB)를 job마다 받지 않도록 공유 캐시 + actions/cache (lock 파일이 바뀌면 새로 받음)
+  TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform-plugin-cache
+
 jobs:
   pfsense-policy:
     runs-on: ubuntu-24.04
@@ -30,6 +34,12 @@ jobs:
           - terraform/live/eks
     steps:
       - uses: actions/checkout@v4
+      - name: provider cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: tf-providers-${{ runner.os }}-${{ hashFiles('terraform/**/.terraform.lock.hcl') }}
+      - run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.17.0
@@ -62,6 +72,12 @@ jobs:
             openssl x509 -in "$pki/$w/client.pem" -noout -checkend $((59*86400))
             ! openssl x509 -in "$pki/$w/client.pem" -noout -checkend $((61*86400))
           done
+      - name: provider cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: tf-providers-${{ runner.os }}-${{ hashFiles('terraform/**/.terraform.lock.hcl') }}
+      - run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.17.0
