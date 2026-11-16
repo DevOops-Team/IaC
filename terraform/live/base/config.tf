@@ -1,4 +1,4 @@
-# 설정은 terraform/config/<environment>.yaml 한 곳 (사람이 고치는 값). 계정 ID는 aws sts로 읽는다.
+# 값은 config/<environment>.yaml에서 읽고, 계정 ID는 aws sts로 읽는다.
 variable "environment" {
   description = "config/<environment>.yaml을 고른다."
   type        = string

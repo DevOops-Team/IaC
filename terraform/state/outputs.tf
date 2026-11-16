@@ -6,8 +6,7 @@ output "state_keys" {
   value = { for name in local.root_names : name => "${local.cfg.environment}/${name}/terraform.tfstate" }
 }
 
-# Reference for future SSO permission sets/CI roles. It is not attached to any
-# application role and does not include deployment permissions for AWS resources.
+# 나중에 SSO 권한 세트 · CI 역할에 붙일 참고용 최소 정책 (state 읽기 · 쓰기 · 잠금만). 어디에도 붙어 있지 않다.
 output "backend_access_policy_json" {
   value = jsonencode({
     Version = "2012-10-17"

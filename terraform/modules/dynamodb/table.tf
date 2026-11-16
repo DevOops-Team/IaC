@@ -1,3 +1,4 @@
+# 영속 테이블: 삭제 보호 · 시점 복구를 켜고 prevent_destroy로 막는다.
 resource "aws_dynamodb_table" "this" {
   name         = var.name
   billing_mode = "PAY_PER_REQUEST"

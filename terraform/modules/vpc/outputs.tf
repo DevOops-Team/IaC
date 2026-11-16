@@ -3,12 +3,12 @@ output "vpc_id" {
 }
 
 output "public_subnet_ids" {
-  description = "AZ => public subnet ID."
+  description = "AZ => 퍼블릭 서브넷 ID."
   value       = { for az, subnet in aws_subnet.public : az => subnet.id }
 }
 
 output "private_subnet_ids" {
-  description = "AZ => private subnet ID."
+  description = "AZ => 프라이빗 서브넷 ID."
   value       = { for az, subnet in aws_subnet.private : az => subnet.id }
 }
 

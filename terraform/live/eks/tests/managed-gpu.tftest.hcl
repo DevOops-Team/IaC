@@ -1,4 +1,4 @@
-# A mocked provider guarantees these topology checks cannot create AWS resources.
+# mock provider라 AWS 자원을 만들지 않고 토폴로지만 검사한다.
 mock_provider "aws" {
   mock_data "aws_caller_identity" {
     defaults = { account_id = "123456789012" }
@@ -38,7 +38,7 @@ override_data {
   }
 }
 
-# Hub registration (hub.tf) talks to Kubernetes; mocked so these checks stay offline.
+# 허브 등록(hub.tf)의 Kubernetes도 mock으로 대체한다.
 mock_provider "kubernetes" {
   alias = "onprem"
 }
@@ -61,7 +61,7 @@ run "three_fixed_spot_gpu_clusters" {
 
   assert {
     condition     = toset(keys(output.eks_clusters)) == toset(["a", "b", "c"])
-    error_message = "Exactly EKS A/B/C must be configured."
+    error_message = "full은 EKS A/B/C 세 개여야 한다."
   }
 
   assert {
@@ -73,7 +73,7 @@ run "three_fixed_spot_gpu_clusters" {
       cluster.cpu.scaling.min_size == 1 && cluster.cpu.scaling.desired_size == 1 && cluster.cpu.scaling.max_size == 1 &&
       toset(keys(cluster.gpu_node_groups)) == toset(["training", "spare"])
     ])
-    error_message = "Each cluster needs a CPU group and distinct training/spare GPU groups."
+    error_message = "클러스터마다 CPU 그룹과 학습 · 예비 GPU 그룹이 따로 있어야 한다."
   }
 
   assert {
@@ -88,7 +88,7 @@ run "three_fixed_spot_gpu_clusters" {
         group.az == "us-east-2${alias}"
       ]
     ]))
-    error_message = "Groups must target 4+1 fixed Spot nodes in the cluster's AZ, using the approved two types."
+    error_message = "GPU 그룹은 클러스터 AZ에 학습 4 + 예비 1대 고정 Spot, 허용된 두 유형만 써야 한다."
   }
 
   assert {
@@ -100,12 +100,12 @@ run "three_fixed_spot_gpu_clusters" {
       length([for t in cluster.gpu_node_groups.training.taints : t if t.key == "devoops/spare"]) == 0 &&
       length([for t in cluster.gpu_node_groups.spare.taints : t if t.key == "devoops/spare" && t.effect == "NO_SCHEDULE"]) == 1
     ])
-    error_message = "Only the spare group may carry the spare label/taint."
+    error_message = "spare 라벨 · taint는 예비 그룹에만 있어야 한다."
   }
 
   assert {
     condition     = length(distinct([for cluster in values(output.eks_clusters) : cluster.service_cidr])) == 3
-    error_message = "Each cluster requires a distinct Service CIDR."
+    error_message = "클러스터마다 Service CIDR이 달라야 한다."
   }
 
   assert {
@@ -113,7 +113,7 @@ run "three_fixed_spot_gpu_clusters" {
       for t in yamldecode(output.gpu_bootstrap.device_plugin_values).tolerations : t
       if t.key == "devoops/spare" && t.value == "true"
     ]) == 1
-    error_message = "The NVIDIA plugin must tolerate the spare-node taint."
+    error_message = "NVIDIA plugin은 예비 노드 taint를 허용해야 한다."
   }
 }
 
@@ -126,7 +126,7 @@ run "two_cluster_test_without_autoscaling" {
 
   assert {
     condition     = toset(keys(output.eks_clusters)) == toset(["a", "b"])
-    error_message = "Test mode must create only A and B."
+    error_message = "test는 A와 B만 만들어야 한다."
   }
 
   assert {
@@ -139,7 +139,7 @@ run "two_cluster_test_without_autoscaling" {
       output.eks_clusters.a.gpu_node_groups.training.scaling.max_size == 2 &&
       length(output.eks_clusters.b.gpu_node_groups) == 0
     )
-    error_message = "Test A must have exactly 2 fixed g4dn.xlarge Spot workers (8 vCPU); B must have no GPU group."
+    error_message = "test A는 g4dn.xlarge Spot 2대 고정(8 vCPU), B는 GPU 그룹이 없어야 한다."
   }
 
   assert {
@@ -148,6 +148,6 @@ run "two_cluster_test_without_autoscaling" {
       toset(cluster.cpu.instance_types) == toset(["t3.large"]) &&
       cluster.cpu.scaling.min_size == 1 && cluster.cpu.scaling.desired_size == 1 && cluster.cpu.scaling.max_size == 1
     ])
-    error_message = "Both test clusters retain the system CPU group."
+    error_message = "test 두 클러스터 모두 시스템 CPU 그룹이 있어야 한다."
   }
 }

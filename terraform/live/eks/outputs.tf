@@ -3,7 +3,7 @@ output "deployment_profile" {
 }
 
 output "eks_clusters" {
-  description = "Private EKS endpoints, per-cluster identities, and fixed managed GPU groups."
+  description = "클러스터별 엔드포인트 · trainer 역할 · CPU/GPU 노드그룹 구성."
   value = {
     for alias, cluster in module.eks : alias => {
       name             = cluster.cluster_name
@@ -20,7 +20,7 @@ output "eks_clusters" {
 }
 
 output "gpu_bootstrap" {
-  description = "Kubernetes owner installs the NVIDIA plugin per cluster; no Karpenter or NodePool."
+  description = "NVIDIA device plugin 설치용 값 (설치는 Gitops). Karpenter 없음."
   value = {
     device_plugin_version = "0.20.1"
     device_plugin_values = yamlencode({

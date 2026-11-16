@@ -3,7 +3,7 @@ variable "name_prefix" {
 }
 
 variable "workload" {
-  description = "Workload name. Certificate CN must be <name_prefix>-<workload>."
+  description = "워크로드 이름. 인증서 CN은 <name_prefix>-<workload>여야 한다."
   type        = string
 }
 

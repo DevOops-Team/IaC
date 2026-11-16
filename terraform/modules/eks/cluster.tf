@@ -24,7 +24,7 @@ resource "aws_eks_cluster" "this" {
   version  = var.kubernetes_version
   role_arn = module.cluster_role.arn
 
-  # 기본 애드온은 다음 단계에서 관리형 애드온으로 명시적으로 구성
+  # 기본 애드온은 addons.tf의 관리형 애드온으로 버전을 고정해 설치한다
   bootstrap_self_managed_addons = false
 
   access_config {

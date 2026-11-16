@@ -1,22 +1,22 @@
 variable "name" {
-  description = "Bucket name (globally unique)."
+  description = "버킷 이름 (전 세계에서 유일)."
   type        = string
 }
 
 variable "versioning" {
-  description = "Enable object versioning."
+  description = "객체 버전 관리 사용."
   type        = bool
   default     = false
 }
 
 variable "bucket_owner_enforced" {
-  description = "Disable ACLs (BucketOwnerEnforced)."
+  description = "ACL 끄기 (BucketOwnerEnforced)."
   type        = bool
   default     = false
 }
 
 variable "lifecycle_rules" {
-  description = "Lifecycle rules. prefix가 없으면 버킷 전체. 값이 없는 항목은 그 동작을 넣지 않는다."
+  description = "수명 주기 규칙. prefix가 없으면 버킷 전체, 비운 항목은 그 동작을 넣지 않는다."
   type = list(object({
     id                              = string
     prefix                          = optional(string)

@@ -7,7 +7,7 @@ output "role_arns" {
 }
 
 output "workloads" {
-  description = "Public identifiers for signing helper configuration; not session credentials."
+  description = "signing helper 설정용 ARN과 credential_process 예시 (자격 증명 아님)."
   value = {
     for name, role in module.role : name => {
       role_arn            = role.role_arn

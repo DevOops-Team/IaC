@@ -1,4 +1,4 @@
-# VPC · 서브넷 · IGW · NAT · S3/DynamoDB 엔드포인트 · VPN (config network). enabled: false면 만들지 않는다.
+# VPC 일체 (modules/vpc). config network.enabled: false면 만들지 않는다 (NAT · VPN 과금).
 module "vpc" {
   source = "../../modules/vpc"
   count  = local.cfg.network.enabled ? 1 : 0

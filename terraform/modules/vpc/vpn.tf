@@ -8,7 +8,7 @@ resource "aws_vpn_gateway" "this" {
   }
 }
 
-# 온프레 pfSense의 공인 IP·BGP ASN 등록
+# 온프레 pfSense의 공인 IP · BGP ASN. 공인 IP가 바뀌면 다시 만들어야 한다
 resource "aws_customer_gateway" "this" {
   bgp_asn    = var.vpn.customer_gateway_asn
   ip_address = var.vpn.customer_gateway_ip
@@ -29,7 +29,7 @@ resource "aws_vpn_connection" "this" {
   local_ipv4_network_cidr  = "0.0.0.0/0"
   remote_ipv4_network_cidr = "0.0.0.0/0"
 
-  # Tunnel 1
+  # 터널 1 (IKEv2 · AES256 · SHA256 · DH14)
   tunnel1_ike_versions                 = ["ikev2"]
   tunnel1_phase1_encryption_algorithms = ["AES256"]
   tunnel1_phase1_integrity_algorithms  = ["SHA2-256"]
@@ -41,7 +41,7 @@ resource "aws_vpn_connection" "this" {
   tunnel1_phase2_dh_group_numbers      = [14]
   tunnel1_phase2_lifetime_seconds      = 3600
 
-  # Tunnel 2
+  # 터널 2 (같은 설정)
   tunnel2_ike_versions                 = ["ikev2"]
   tunnel2_phase1_encryption_algorithms = ["AES256"]
   tunnel2_phase1_integrity_algorithms  = ["SHA2-256"]
@@ -58,7 +58,7 @@ resource "aws_vpn_connection" "this" {
   }
 }
 
-# BGP로 학습한 경로를 프라이빗 라우팅 테이블 3곳에 전파
+# BGP로 받은 온프레 경로를 프라이빗 라우팅 테이블에 전파
 resource "aws_vpn_gateway_route_propagation" "private" {
   for_each = var.subnets
 

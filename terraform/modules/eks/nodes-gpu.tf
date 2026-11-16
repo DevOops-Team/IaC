@@ -1,3 +1,4 @@
+# GPU 노드그룹: 학습(training) · 예비(spare), 수량 0이면 그룹을 만들지 않는다. 모두 Spot, 최소=희망=최대 고정.
 locals {
   gpu_node_groups = {
     for role, count in {
@@ -11,8 +12,7 @@ resource "aws_launch_template" "gpu" {
   for_each    = local.gpu_node_groups
   name_prefix = "${var.cluster_name}-gpu-${each.key}-"
 
-  # Do not specify image_id or instance_type here. EKS selects its pinned NVIDIA
-  # AMI and the Spot ASG selects from the node group's two eligible types.
+  # image_id · instance_type은 비운다: AMI는 노드그룹의 고정 NVIDIA 릴리스, 유형은 Spot이 허용 목록에서 고른다.
   block_device_mappings {
     device_name = "/dev/xvda"
     ebs {
@@ -48,8 +48,7 @@ resource "aws_eks_node_group" "gpu" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "${var.cluster_name}-gpu-${each.key}"
   node_role_arn   = module.gpu_node_role.arn
-  # CPU and GPU workers for this cluster stay in the cluster's assigned AZ;
-  # its control-plane ENIs still use private subnets across multiple AZs.
+  # 워커는 클러스터에 배정된 AZ 하나에만 둔다 (컨트롤 플레인은 여러 AZ 서브넷 사용).
   subnet_ids      = [var.private_subnet_ids[var.cpu_node_az]]
   capacity_type   = "SPOT"
   instance_types  = var.gpu_instance_types
@@ -88,8 +87,7 @@ resource "aws_eks_node_group" "gpu" {
     }
   }
 
-  # GPU version updates terminate before replacement to avoid an update surge.
-  # Spot rebalancing/failures may still temporarily change healthy capacity.
+  # 업데이트는 한 대씩 먼저 내리고 교체한다 (GPU 쿼터를 넘는 증설 방지).
   update_config {
     max_unavailable = 1
     update_strategy = "MINIMAL"

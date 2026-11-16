@@ -1,4 +1,4 @@
-# GPU-142: every EKS this root creates is registered with the on-prem hub, and only those.
+# GPU-142: 이 root가 만드는 EKS만, 빠짐없이 온프레 허브에 등록되는지 본다.
 mock_provider "aws" {
   mock_data "aws_caller_identity" {
     defaults = { account_id = "123456789012" }
@@ -66,7 +66,7 @@ run "test_profile_registers_a_and_b" {
 
   assert {
     condition     = toset(keys(output.hub_registration)) == toset(["a", "b"])
-    error_message = "The test profile has EKS A/B only, so only they are registered."
+    error_message = "test 토폴로지는 EKS A/B만 등록해야 한다."
   }
 
   assert {
@@ -75,7 +75,7 @@ run "test_profile_registers_a_and_b" {
       r.onprem_secrets.multikueue_kubeconfig == "kueue-system/eks-${alias}-kubeconfig" &&
       r.onprem_secrets.argocd_cluster == "argocd/cluster-eks-${alias}"
     ])
-    error_message = "Secret names must match MultiKueueCluster eks-<x> and the Argo CD destination name."
+    error_message = "Secret 이름이 MultiKueueCluster eks-<x> · Argo CD 목적지 이름과 같아야 한다."
   }
 
   assert {
@@ -84,7 +84,7 @@ run "test_profile_registers_a_and_b" {
       r.argocd_cluster_labels["argocd.argoproj.io/secret-type"] == "cluster" &&
       r.argocd_cluster_labels["devoops.site/gpu-worker"] == "true"
     ])
-    error_message = "ApplicationSet gpu-eks-scheduling selects clusters by devoops.site/gpu-worker."
+    error_message = "ApplicationSet gpu-eks-scheduling은 devoops.site/gpu-worker 라벨로 클러스터를 고른다."
   }
 
   assert {
@@ -93,12 +93,12 @@ run "test_profile_registers_a_and_b" {
       r.eks_service_accounts.multikueue == "kueue-system/multikueue-sa" &&
       r.eks_service_accounts.argocd_manager == "kube-system/argocd-manager"
     ])
-    error_message = "Gitops binds devoops-dispatcher-read to kueue-system/multikueue-sa."
+    error_message = "Gitops가 devoops-dispatcher-read를 kueue-system/multikueue-sa에 묶는다."
   }
 
   assert {
     condition     = module.hub_eks_a[0].argocd_cluster_labels != null && length(module.hub_eks_c) == 0
-    error_message = "EKS C must not be registered without the full profile."
+    error_message = "full이 아니면 EKS C를 등록하면 안 된다."
   }
 }
 
@@ -111,11 +111,11 @@ run "full_profile_registers_c_too" {
 
   assert {
     condition     = toset(keys(output.hub_registration)) == toset(["a", "b", "c"])
-    error_message = "The full profile registers EKS A/B/C."
+    error_message = "full 토폴로지는 EKS A/B/C를 등록한다."
   }
 
   assert {
     condition     = output.hub_registration.c.onprem_secrets.argocd_cluster == "argocd/cluster-eks-c"
-    error_message = "EKS C registers as eks-c."
+    error_message = "EKS C는 eks-c로 등록된다."
   }
 }

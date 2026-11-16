@@ -1,6 +1,6 @@
-# 1회용 (GPU-171): 예전 data · identity root의 자원을 이 root가 넘겨받는다. 실제 자원은 바뀌지 않는다.
-# 넘겨받은 뒤(apply 완료) 이 파일을 지우고, 예전 state(prod/data · prod/identity)에서는 state rm만 한다 (destroy 금지).
-# trust anchor · profile ID는 AWS가 만든 값이라 예전 state에서 옮겨 적었다.
+# 1회용 (GPU-171): 예전 data · identity root의 자원 38개를 이 root로 넘겨받는다. 실제 자원은 바뀌지 않는다.
+# apply 뒤 이 파일을 지우고, 예전 state에서는 state rm만 한다 (destroy 금지, docs/STATE-BACKEND.md).
+# trust anchor · profile ID는 AWS가 정한 값이라 예전 state에서 옮겨 적었다.
 
 import {
   to = module.checkpoint.aws_s3_bucket.this

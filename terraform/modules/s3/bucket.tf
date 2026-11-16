@@ -1,4 +1,4 @@
-# 영속 버킷이라 지우지 못하게 막는다 (prevent_destroy는 변수로 바꿀 수 없음).
+# 영속 버킷이라 삭제를 막는다 (prevent_destroy는 변수로 끌 수 없음). 암호화 · 공개 차단은 항상 켠다.
 resource "aws_s3_bucket" "this" {
   bucket        = var.name
   force_destroy = false

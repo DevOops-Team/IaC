@@ -1,5 +1,5 @@
-# 온프레 워크로드가 Roles Anywhere 인증서로 받는 AWS 권한 (워크로드 목록은 config onprem_workloads).
-# 검토된 계약의 동작만 넣는다. 정책이 없는 워크로드는 역할 · profile만 만든다.
+# 온프레 워크로드별 AWS 권한 (Roles Anywhere). 목록은 config onprem_workloads.
+# 계약에서 확인된 동작만 넣는다. 정책이 없는 워크로드는 역할 · profile만 만든다.
 locals {
   onprem_policies = merge({
     backend = {

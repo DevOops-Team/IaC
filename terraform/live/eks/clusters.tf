@@ -1,4 +1,4 @@
-# config eks.topologies[<topology>]의 클러스터마다 EKS 하나 (modules/eks).
+# 이번 토폴로지(config eks.topologies)의 클러스터마다 modules/eks를 부른다.
 data "aws_iam_roles" "sso_admin" {
   name_regex  = var.eks_admin_role_name_regex
   path_prefix = "/aws-reserved/sso.amazonaws.com/"
@@ -14,7 +14,7 @@ locals {
     for alias in local.topology.clusters : alias => merge(local.cfg.eks.clusters[alias], local.topology.gpu[alias])
   }
 
-  # one(): 계정에 맞는 SSO 관리자 역할이 없거나 여러 개면 plan에서 바로 실패한다
+  # SSO 관리자 역할은 계정마다 suffix가 달라 패턴으로 찾는다. 없거나 여러 개면 one()이 실패시킨다
   eks_admin_role_arn = one(data.aws_iam_roles.sso_admin.arns)
 }
 

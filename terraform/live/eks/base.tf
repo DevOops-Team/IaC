@@ -1,4 +1,4 @@
-# live/base의 출력 (네트워크 · 버킷 · 펜싱 테이블 · 온프레 역할). base를 먼저 apply한다.
+# live/base의 출력(네트워크 · 버킷 · 펜싱 테이블 · 온프레 역할)을 읽는다. base가 먼저 있어야 한다.
 data "terraform_remote_state" "base" {
   backend = "s3"
   config = {
@@ -13,7 +13,7 @@ locals {
   network = local.base.network
 }
 
-# config network.enabled = false로 base를 apply했으면 EKS를 만들 수 없다
+# 네트워크가 꺼져 있으면(network.enabled: false) EKS를 만들지 않고 멈춘다
 resource "terraform_data" "require_network" {
   lifecycle {
     precondition {

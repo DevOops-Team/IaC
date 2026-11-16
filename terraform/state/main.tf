@@ -1,7 +1,7 @@
 locals {
   state_bucket_name = "${local.name_prefix}-tfstate-${local.account_id}-${local.region}"
-  # state 키 이름 (run.sh의 state_key와 같아야 한다). 이 root의 키는 처음 이름 bootstrap을 유지한다.
-  # data · identity는 11/16 live/base로 합치기 전 키라 남은 기록을 지키려고 둔다.
+  # 삭제를 막을 state 키 (run.sh state_key와 같아야 함). 이 root 자신은 처음 이름 bootstrap.
+  # data · identity는 live/base로 합치기 전 키(11/16), 기록 보호용으로 남긴다.
   root_names = ["bootstrap", "base", "eks", "data", "identity"]
 }
 
@@ -59,7 +59,7 @@ resource "aws_s3_bucket_policy" "state" {
         Condition = { Bool = { "aws:SecureTransport" = "false" } }
       },
       {
-        # Lock files must remain deletable. Only actual state objects are protected.
+        # 잠금 파일(.tflock)은 지울 수 있어야 하므로 state 파일만 막는다
         Sid       = "ProtectStateHistoryFromDeletion"
         Effect    = "Deny"
         Principal = "*"

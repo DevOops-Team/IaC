@@ -1,4 +1,4 @@
-# 영속 데이터: 체크포인트 · 모니터링 S3, 펜싱 DynamoDB (config storage · fencing_table)
+# 영속 데이터: 체크포인트 · 모니터링 S3, 펜싱 DynamoDB (config storage · fencing_table). 삭제 방지가 걸려 있다.
 locals {
   checkpoint_bucket_name = "${local.name_prefix}-${local.cfg.storage.checkpoint.suffix}-${local.account_id}-${local.region}"
   monitoring_bucket_name = "${local.name_prefix}-${local.cfg.storage.monitoring.suffix}-${local.account_id}-${local.region}"
