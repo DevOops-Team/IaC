@@ -69,5 +69,5 @@ S3 버킷 · DynamoDB 테이블 · Roles Anywhere trust anchor에는 `prevent_de
 
 ## 2026-11-16 구조 변경 (GPU-171)
 
-예전 root `data` · `identity`의 자원(S3 13개 + Roles Anywhere 25개)은 `live/base/imports.tf`의 `import` 블록으로 넘겨받는다
+예전 root `data` · `identity`의 자원(S3 13개 + Roles Anywhere 25개)은 11/16 `import` 블록으로 `live/base`가 넘겨받았다 (import 38 · 변경 0, 이후 imports.tf 삭제)
 (plan: 38 import, 0 change). 넘겨받은 뒤 순서는 [docs/STATE-BACKEND.md](docs/STATE-BACKEND.md) "예전 state 정리".
