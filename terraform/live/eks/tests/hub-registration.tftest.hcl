@@ -73,9 +73,10 @@ run "test_profile_registers_a_and_b" {
     condition = alltrue([
       for alias, r in output.hub_registration :
       r.onprem_secrets.multikueue_kubeconfig == "kueue-system/eks-${alias}-kubeconfig" &&
-      r.onprem_secrets.argocd_cluster == "argocd/cluster-eks-${alias}"
+      r.onprem_secrets.argocd_cluster == "argocd/cluster-eks-${alias}" &&
+      r.onprem_secrets.relocator_kubeconfig == "kueue-system/eks-${alias}-relocator-kubeconfig"
     ])
-    error_message = "Secret 이름이 MultiKueueCluster eks-<x> · Argo CD 목적지 이름과 같아야 한다."
+    error_message = "Secret 이름이 MultiKueueCluster eks-<x> · Argo CD 목적지 · relocator({name}-relocator-kubeconfig)와 같아야 한다."
   }
 
   assert {
@@ -91,9 +92,10 @@ run "test_profile_registers_a_and_b" {
     condition = alltrue([
       for r in values(output.hub_registration) :
       r.eks_service_accounts.multikueue == "kueue-system/multikueue-sa" &&
-      r.eks_service_accounts.argocd_manager == "kube-system/argocd-manager"
+      r.eks_service_accounts.argocd_manager == "kube-system/argocd-manager" &&
+      r.eks_service_accounts.relocator == "kueue-system/relocator"
     ])
-    error_message = "Gitops가 devoops-dispatcher-read를 kueue-system/multikueue-sa에 묶는다."
+    error_message = "EKS SA 이름: multikueue-sa(Gitops devoops-dispatcher-read가 묶음) · argocd-manager · relocator."
   }
 
   assert {

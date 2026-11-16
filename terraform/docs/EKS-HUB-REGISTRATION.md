@@ -12,7 +12,9 @@
 | EKS | SA `kueue-system/multikueue-sa`, ClusterRole `multikueue-sa-role` + Binding, 토큰 Secret `kueue-system/multikueue-sa` | MultiKueue가 JobSet · Workload를 만들고 dispatcher가 용량을 읽음. Gitops `devoops-dispatcher-read`가 읽기 권한을 더함 |
 | EKS | SA `kube-system/argocd-manager` + `cluster-admin`, 토큰 Secret `kube-system/argocd-manager-token` | 온프레 Argo CD가 Kueue · JobSet 차트(CRD · 웹훅)를 설치 |
 | EKS | `training/ghcr-pull` | 비공개 trainer · checkpoint 이미지. 값은 온프레 `platform/ghcr-pull`을 그대로 복사 |
+| EKS | SA `kueue-system/relocator`, ClusterRole `relocator-nodes`(노드 get · list · patch) + Binding, Role `training/relocator-stop-check`(pods list · jobsets get · workloads list) + Binding, 토큰 Secret `kueue-system/relocator` | relocator가 GPU 노드 cordon · taint, 옛 잡 종료 확인 (GPU-174). 노드 수정 권한을 MultiKueue 토큰과 나눈다 |
 | 온프레 | `kueue-system/<eks>-kubeconfig` (키 `kubeconfig`) | Gitops `MultiKueueCluster <eks>` |
+| 온프레 | `kueue-system/<eks>-relocator-kubeconfig` (키 `kubeconfig`) | relocator (`RELOCATOR_KUBECONFIG_SECRET`). 없으면 relocator가 MultiKueue Secret으로 대신해 cordon이 403 |
 | 온프레 | `argocd/cluster-<eks>` (라벨 `argocd.argoproj.io/secret-type: cluster`, `devoops.site/gpu-worker: "true"`) | ApplicationSet `gpu-eks-scheduling`이 Kueue 0.20.4 · JobSet 0.13.0 · 워커 큐를 배포 (GPU-133) |
 
 토큰은 만료 없는 `service-account-token` Secret이다(ADR-9). 등록이 끝나면 사람 손 없이 `gpu-eks-scheduling-<eks>`가 Synced/Healthy, `MultiKueueCluster <eks>`가 Connected=True가 된다.

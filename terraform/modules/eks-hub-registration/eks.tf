@@ -2,6 +2,7 @@
 #   - kueue-system/multikueue-sa : MultiKueue · dispatcher가 쓰는 토큰 (권한은 아래 ClusterRole + Gitops devoops-dispatcher-read)
 #   - kube-system/argocd-manager : 온프레 Argo CD가 Kueue · JobSet 차트(CRD · 웹훅)를 설치하므로 cluster-admin
 #   - training/ghcr-pull         : 비공개 trainer · checkpoint 이미지 pull (온프레 platform/ghcr-pull과 같은 값)
+#   - kueue-system/relocator     : relocator 전용 (노드 cordon · taint), relocator.tf
 # 토큰은 만료 없는 service-account-token Secret이다 (ADR-9, exec 인증 쓰지 않음).
 
 # 관리자 Access Entry가 붙기 전에는 API 호출이 403이므로 그 뒤에 만든다.
@@ -47,7 +48,7 @@ resource "kubernetes_cluster_role_v1" "multikueue" {
     name = "multikueue-sa-role"
   }
 
-  # dispatcher가 용량을 읽는다. 노드 변경은 relocator 역할에만 있다.
+  # dispatcher가 용량을 읽는다. 노드 변경은 relocator 역할(relocator.tf)에만 있다.
   rule {
     api_groups = [""]
     resources  = ["nodes", "pods"]

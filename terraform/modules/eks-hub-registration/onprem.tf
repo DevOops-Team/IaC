@@ -2,7 +2,8 @@
 #   ① kueue-system/<alias>-kubeconfig : Gitops MultiKueueCluster <alias>가 읽는다 (multikueue-sa 토큰만)
 #   ② argocd/cluster-<alias>          : 라벨 devoops.site/gpu-worker로 ApplicationSet gpu-eks-scheduling이
 #                                       이 클러스터에 Kueue · JobSet · 워커 큐를 배포한다 (GPU-133)
-# EKS를 지우면 둘 다 지워져 MultiKueueCluster는 Inactive, Application은 사라진다.
+#   ③ kueue-system/<alias>-relocator-kubeconfig : relocator 전용 (relocator.tf, GPU-174)
+# EKS를 지우면 모두 지워져 MultiKueueCluster는 Inactive, Application은 사라진다.
 
 data "kubernetes_secret_v1" "onprem_ghcr_pull" {
   provider = kubernetes.onprem
