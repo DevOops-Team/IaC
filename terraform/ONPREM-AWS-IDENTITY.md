@@ -32,7 +32,7 @@ defined. The CA generation script refuses silent replacement of existing CA or
 workload identity files. Before using an existing CA, confirm its key pair and
 validity. No leaf certificate was issued during initial plan preparation.
 
-When deployment is ready, issue each workload's separate 30-day certificate
+When deployment is ready, issue each workload's separate 60-day certificate
 using PowerShell (the script does not create Kubernetes Secrets):
 
 ```powershell
@@ -43,7 +43,7 @@ using PowerShell (the script does not create Kubernetes Secrets):
 ```
 
 Monitoring workloads also have separate certificates. For an explicitly selected
-60-day validity period (the default remains 30 days):
+60-day validity period (also the default for all workloads):
 
 ```powershell
 ./scripts/rolesanywhere/New-WorkloadCertificate.ps1 -Workload mimir -ValidityDays 60
@@ -58,6 +58,12 @@ Verify the active AWS trust anchor matches the issuing CA before handoff.
 Retrieve fresh role/profile/trust-anchor ARNs after any AWS recreation rather
 than reusing identifiers from an old state backup. Monitoring object retention
 is managed by Mimir/Loki/Tempo; do not add a blanket 30-day S3 object expiration.
+
+Changing the default does not extend existing certificates. Issue a renewal
+under the same CA in a separate secured directory, verify its chain, CN, key
+match and dates, then roll it out to the consumer before retiring the old leaf.
+Certificate lifetime is separate from the 1-hour AWS session duration and from
+S3 retention. Keep existing 30-day backup/app retention settings unchanged.
 
 For explicit renewal, prepare a new secured PkiDirectory containing a restored
 copy of the same ca.key/ca.pem and issue new leaves there. Verify the new chain,

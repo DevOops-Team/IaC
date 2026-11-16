@@ -3,7 +3,7 @@ param(
     [ValidateSet('backend', 'recovery', 'relocator', 'multikueue', 'db-backup', 'mimir', 'loki', 'tempo')]
     [string]$Workload,
     [ValidateRange(1, 365)]
-    [int]$ValidityDays = 30,
+    [int]$ValidityDays = 60,
     [string]$PkiDirectory = (Join-Path $env:USERPROFILE '.devoops/rolesanywhere/prod'),
     [string]$OpenSsl = 'C:/Program Files/Git/usr/bin/openssl.exe'
 )
