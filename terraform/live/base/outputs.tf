@@ -26,7 +26,13 @@ output "onprem_role_arns" {
 }
 
 output "trust_anchor_arn" {
-  value = module.rolesanywhere.trust_anchor_arn
+  description = "처음 CA(primary)의 trust anchor ARN."
+  value       = module.rolesanywhere.trust_anchor_arn
+}
+
+output "trust_anchor_arns" {
+  description = "CA별 trust anchor ARN. helper에는 인증서를 발급한 CA의 anchor를 넘긴다."
+  value       = module.rolesanywhere.trust_anchor_arns
 }
 
 output "workloads" {

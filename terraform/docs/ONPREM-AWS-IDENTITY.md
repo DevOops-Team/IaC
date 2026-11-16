@@ -20,8 +20,17 @@ names must be synchronized between these roots.
 
 macOS · Linux: `bootstrap/certs.sh` (기본 backend · mimir · loki · tempo, 60일, 이미 있는 인증서는 건너뜀,
 `--renew`는 같은 키로 재발급, `--status`는 만료일). 기존 CA가 없으면 `--init-ca`를 명시해야 새 CA를 만든다.
-새 CA로 base를 apply하면 trust anchor가 바뀌어 옛 CA로 발급한 인증서는 모두 무효가 된다.
-`terraform/run.sh apply base`는 `CA_CERT`(기본 `~/.devoops/rolesanywhere/prod/ca.pem`)를 넘긴다.
+CA는 여러 개를 믿을 수 있다 (11/16, GPU-173). `live/base/terraform.local.tfvars`:
+
+```hcl
+ca_certificate_path = "~/.devoops/rolesanywhere/legacy/ca.pem"     # primary: 처음 CA (박기현 PC). 바꾸면 기존 인증서가 끊긴다
+additional_ca_certificate_paths = {
+  v2 = "~/.devoops/rolesanywhere/prod/ca.pem"                      # 노찬경 PC CA → trust anchor devoops-prod-onprem-ca-v2
+}
+```
+
+워크로드 역할은 모든 anchor를 믿는다. helper(sidecar)에는 **인증서를 발급한 CA의 anchor ARN**을 넘긴다
+(`terraform/run.sh output base -- trust_anchor_arns`). tfvars에 `ca_certificate_path`가 없으면 run.sh가 `CA_CERT`(기본 `~/.devoops/rolesanywhere/prod/ca.pem`)를 넘긴다.
 
 Windows: 아래 PowerShell 스크립트 (같은 PKI 디렉터리 구조).
 
