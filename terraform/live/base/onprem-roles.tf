@@ -109,7 +109,10 @@ module "rolesanywhere" {
   source             = "../../modules/rolesanywhere"
   name_prefix        = local.name_prefix
   account_id         = local.account_id
-  ca_certificate_pem = file(var.ca_certificate_path)
+  ca_certificate_pem = file(pathexpand(var.ca_certificate_path))
+  additional_ca_certificates = {
+    for name, path in var.additional_ca_certificate_paths : name => file(pathexpand(path))
+  }
 
   workloads = {
     for w in local.cfg.onprem_workloads : w => {

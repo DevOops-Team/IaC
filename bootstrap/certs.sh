@@ -15,9 +15,10 @@
 #   bootstrap/certs.sh --init-ca             # CA가 없을 때만: 새 CA를 만든다
 #   bootstrap/certs.sh --status              # 발급된 인증서와 만료일만 본다
 #
-# 새 CA를 만들고 base를 apply하면 trust anchor가 새 CA로 바뀌어, 옛 CA로 발급한 인증서
-# (다른 PC에서 발급한 것 포함)는 모두 쓸 수 없게 된다. 이미 CA가 있으면 그 ca.key · ca.pem을
-# 이 PKI 디렉터리로 안전하게 복사해 쓴다. Windows용 같은 동작: scripts/rolesanywhere/New-WorkloadCertificate.ps1
+# 새 CA를 만들면 base의 additional_ca_certificate_paths에 등록해 trust anchor를 하나 더 만든다
+# (기존 CA 인증서는 그대로 동작). primary(ca_certificate_path)를 새 CA로 바꾸면 기존 인증서가 모두 끊긴다.
+# 이미 쓰는 CA가 있으면 그 ca.key · ca.pem을 이 PKI 디렉터리로 안전하게 복사해 쓴다.
+# Windows용 같은 동작: scripts/rolesanywhere/New-WorkloadCertificate.ps1
 set -euo pipefail
 
 ALLOWED="backend recovery relocator multikueue db-backup mimir loki tempo"
@@ -99,7 +100,7 @@ subjectKeyIdentifier = hash
 EOF
   "$OPENSSL" req -x509 -newkey rsa:3072 -nodes -sha256 -days "$CA_DAYS" -config "$cfg" \
     -keyout "$CA_KEY" -out "$CA_CERT" 2>/dev/null
-  echo "CA: 새로 만듦 (${CA_DAYS}일). base를 apply하면 trust anchor가 이 CA로 바뀝니다"
+  echo "CA: 새로 만듦 (${CA_DAYS}일). base의 additional_ca_certificate_paths에 등록해 trust anchor를 추가하세요"
 fi
 "$OPENSSL" x509 -in "$CA_CERT" -noout -checkend $((DAYS*86400)) >/dev/null \
   || die "CA가 ${DAYS}일 안에 만료됩니다. CA 갱신이 먼저입니다"
