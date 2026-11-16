@@ -1,0 +1,89 @@
+# 모니터링 클러스터를 관리 클러스터 Argo CD에 원격 클러스터로 등록한다 (GPU-177).
+#   모니터링 클러스터: kube-system/argocd-manager SA + cluster-admin + 만료 없는 토큰 (EKS 등록과 같은 방식, ADR-9)
+#   관리 클러스터   : argocd/cluster-monitoring Secret (주소 · 토큰 · CA). 토큰이 들어 있어 Gitops(public)에 두지 않는다
+# 어떤 리소스를 어느 네임스페이스에 배포할지는 Gitops의 AppProject가 묶는다.
+# 다시 실행해도 결과가 같다. 토큰 교체: 모니터링 클러스터의 kube-system/argocd-manager-token을 지우고 다시 실행.
+- name: Require monitoring context
+  ansible.builtin.assert:
+    that:
+    - monitoring_context is defined
+    - monitoring_context != 'YOUR_MONITORING_CONTEXT'
+    - monitoring_context != manager_context
+    fail_msg: bootstrap.local.yml에 monitoring_context (모니터링 클러스터 kubeconfig context)를 넣는다
+
+- name: Read monitoring cluster nodes
+  ansible.builtin.command:
+    argv: [kubectl, --context, '{{ monitoring_context }}', get, nodes, -o, json]
+  register: monitoring_nodes
+  changed_when: false
+
+- name: Require the three-VM monitoring cluster (wrong context guard)
+  ansible.builtin.assert:
+    that:
+    - (monitoring_nodes.stdout | from_json)['items'] | map(attribute='metadata.name') | sort == monitoring_expected_nodes | sort
+    fail_msg: monitoring_context가 모니터링 클러스터(monitoring1~3)를 가리키지 않는다
+
+- name: Create Argo CD service account, binding and token in the monitoring cluster
+  ansible.builtin.command:
+    argv: [kubectl, --context, '{{ monitoring_context }}', apply, -f, '-']
+    stdin: '{{ lookup("ansible.builtin.template", "argocd-manager.yaml.j2") }}'
+  register: monitoring_sa_apply
+  changed_when: '''created'' in monitoring_sa_apply.stdout or ''configured'' in monitoring_sa_apply.stdout'
+
+- name: Wait for the service account token
+  ansible.builtin.command:
+    argv: [kubectl, --context, '{{ monitoring_context }}', -n, kube-system, get, secret, argocd-manager-token, -o, 'jsonpath={.data.token}']
+  register: monitoring_token
+  until: monitoring_token.stdout | length > 0
+  retries: 15
+  delay: 2
+  changed_when: false
+  no_log: true
+
+- name: Read the monitoring cluster CA
+  ansible.builtin.command:
+    argv: [kubectl, --context, '{{ monitoring_context }}', -n, kube-system, get, configmap, kube-root-ca.crt, -o, 'jsonpath={.data.ca\.crt}']
+  register: monitoring_ca
+  changed_when: false
+
+- name: Require a PEM CA
+  ansible.builtin.assert:
+    that:
+    - monitoring_ca.stdout is search('-----BEGIN CERTIFICATE-----')
+
+- name: Register the monitoring cluster in manager Argo CD (via stdin, not written to disk)
+  ansible.builtin.command:
+    argv: [kubectl, --context, '{{ manager_context }}', apply, -f, '-']
+    stdin: >-
+      {{ {
+        "apiVersion": "v1",
+        "kind": "Secret",
+        "metadata": {
+          "name": monitoring_argocd_secret_name,
+          "namespace": "argocd",
+          "labels": {
+            "argocd.argoproj.io/secret-type": "cluster",
+            "devoops.site/monitoring": "true"
+          }
+        },
+        "type": "Opaque",
+        "stringData": {
+          "name": monitoring_argocd_cluster_name,
+          "server": monitoring_api_server,
+          "config": {
+            "bearerToken": monitoring_token.stdout | b64decode,
+            "tlsClientConfig": {"insecure": false, "caData": monitoring_ca.stdout | b64encode}
+          } | to_json
+        }
+      } | to_json }}
+  register: monitoring_cluster_apply
+  changed_when: '''created'' in monitoring_cluster_apply.stdout or ''configured'' in monitoring_cluster_apply.stdout'
+  no_log: true
+  diff: false
+
+- name: Show registration result
+  ansible.builtin.debug:
+    msg: >-
+      Argo CD 클러스터 '{{ monitoring_argocd_cluster_name }}' = {{ monitoring_api_server }}
+      ({{ monitoring_cluster_apply.stdout | default('') }}).
+      확인: kubectl -n argocd get secret {{ monitoring_argocd_secret_name }}, Argo CD UI Settings > Clusters

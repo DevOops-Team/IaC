@@ -1,0 +1,9 @@
+# 모니터링 클러스터를 관리 클러스터 Argo CD에 원격 클러스터로 등록 (GPU-177).
+# 저장 층(Mimir · Loki · Tempo · Alertmanager · Grafana) Application은 Gitops에서 destination.name: monitoring으로 배포한다.
+- name: Register the monitoring cluster in manager Argo CD
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+  - manager-preflight
+  - monitoring-hub-registration

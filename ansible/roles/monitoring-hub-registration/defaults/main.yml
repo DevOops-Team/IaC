@@ -1,0 +1,6 @@
+# 모니터링 클러스터를 관리 클러스터 Argo CD에 원격 클러스터로 등록한다 (GPU-177).
+# monitoring_context는 bootstrap.local.yml에 둔다 (예시는 bootstrap.example.yml).
+monitoring_api_server: https://172.30.0.30:6443   # kube-vip API VIP. 인증서 SAN에 들어 있음 (inventory/monitoring/group_vars/k8s_cluster/ha.yml)
+monitoring_expected_nodes: [monitoring1, monitoring2, monitoring3]
+monitoring_argocd_cluster_name: monitoring        # Argo CD에 보이는 이름 = Application destination.name
+monitoring_argocd_secret_name: cluster-monitoring

@@ -53,6 +53,14 @@ bootstrap.local.yml의 gitops_repo_url과 gitops_root_dir(실행 머신의 Gitop
 ```
 
 EKS registry · MultiKueue credential · Argo CD 클러스터 등록은 Terraform `terraform/eks`가 EKS 생성 · 삭제 때 함께 처리합니다 (GPU-142).
+
+모니터링 클러스터(172.30.0.30)는 관리 클러스터 Argo CD에 원격 클러스터로 등록합니다 (GPU-177). bootstrap.local.yml에 `monitoring_context`(모니터링 kubeconfig context)를 추가하고 실행합니다.
+모니터링 클러스터에 `kube-system/argocd-manager`(cluster-admin, 만료 없는 토큰)를, 관리 클러스터에 `argocd/cluster-monitoring` Secret을 만듭니다. 토큰은 stdin으로만 넘깁니다.
+배포 범위는 Gitops AppProject가 제한하고, 저장 층 Application은 `destination.name: monitoring`을 씁니다. 다시 실행해도 결과가 같습니다.
+
+```bash
+.venv/bin/ansible-playbook playbooks/bootstrap/register-monitoring-cluster.yml -e @bootstrap.local.yml
+```
 부트스트랩은 Secret 등록을 위해 없는 namespace만 생성하며, 이후 namespace의 원하는 상태는 Gitops 레포가 관리합니다. 자동으로 Cloudflare token을 추정하거나 빈 값을 저장하지 않습니다.
 site.yml은 MAP 확인 → Argo 설치 → Secret → root 등록을 묶습니다. 모든 실제 입력·접근 권한이 준비된 후에만 사용합니다. Cloudflare 외부 공개는 별도 단계입니다.
 
