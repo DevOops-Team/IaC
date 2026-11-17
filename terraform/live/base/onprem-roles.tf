@@ -35,7 +35,7 @@ locals {
       ]
     }
     recovery = {
-      name = "recovery-fencing-access"
+      name = "recovery-data-access"
       statements = [
         {
           Sid      = "ManageRecoveryState"
