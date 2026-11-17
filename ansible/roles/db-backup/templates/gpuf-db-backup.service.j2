@@ -1,0 +1,12 @@
+# {{ ansible_managed }} — roles/db-backup (GPU-181)
+[Unit]
+Description=Data DB backup (pg_dump -> S3 {{ db_backup_prefix }}/, GPU-128)
+After=postgresql.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/db-backup/backup.sh
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=30min

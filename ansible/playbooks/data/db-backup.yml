@@ -1,0 +1,48 @@
+---
+# 데이터 DB 백업 설치 (GPU-181 · GPU-128 · ADR-14): pg_dump -Fc → S3 체크포인트 버킷 backups/db/, 매일 04:00 KST.
+# 버킷 · Roles Anywhere ARN은 Terraform live/base 출력에서 읽는다 (손으로 넣은 값이 계정 · anchor 재생성과 어긋나지 않게).
+#
+#   aws sso login --profile devoops
+#   ansible-playbook -i inventory/db playbooks/data/db-backup.yml -K                       # 설치
+#   ansible-playbook -i inventory/db playbooks/data/db-backup.yml -K -e db_backup_run_now=true   # 설치 + 1회 실행 확인
+#   ... -e db_backup_signing_helper_src=/path/aws_signing_helper                            # helper 교체 (GPU-182)
+#
+# Terraform을 못 읽는 곳에서는 -e로 직접 준다: db_backup_bucket · db_backup_trust_anchor_arn ·
+# db_backup_profile_arn · db_backup_role_arn (값은 `terraform/run.sh output base -- -json`).
+# 인증서 · 개인 키(/etc/devoops-aws/client.{pem,key})는 Git 밖이다. 이 플레이북은 있는지 · 만료만 확인한다.
+
+- name: Read bucket and Roles Anywhere ARNs from Terraform (live/base)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    iac_root: "{{ playbook_dir }}/../../.."
+  tasks:
+  - name: terraform output -json (base)
+    ansible.builtin.command:
+      argv: ["{{ iac_root }}/terraform/run.sh", "output", "base", "-y", "--", "-json"]
+    register: tf_base
+    changed_when: false
+    when: db_backup_bucket is not defined
+  - name: Pick db-backup values
+    ansible.builtin.set_fact:
+      db_backup_bucket: "{{ db_backup_bucket | default(out.checkpoint_bucket.value.name) }}"
+      db_backup_trust_anchor_arn: >-
+        {{ db_backup_trust_anchor_arn | default(out.trust_anchor_arns.value[db_backup_ca | default('primary')]) }}
+      db_backup_profile_arn: "{{ db_backup_profile_arn | default(out.workloads.value['db-backup'].profile_arn) }}"
+      db_backup_role_arn: "{{ db_backup_role_arn | default(out.workloads.value['db-backup'].role_arn) }}"
+    vars:
+      # run.sh가 머리말(계정 · state 위치)을 먼저 찍으므로 "{"만 있는 줄부터가 terraform output -json
+      out: "{{ (tf_base.stdout | regex_search('(?sm)^\\{$.*\\Z') | from_json) if (tf_base.stdout | default('')) else {} }}"
+
+- name: Install data DB backup on the DB VM
+  hosts: data_db
+  become: true
+  gather_facts: false
+  vars:
+    db_backup_bucket: "{{ hostvars['localhost'].db_backup_bucket }}"
+    db_backup_trust_anchor_arn: "{{ hostvars['localhost'].db_backup_trust_anchor_arn }}"
+    db_backup_profile_arn: "{{ hostvars['localhost'].db_backup_profile_arn }}"
+    db_backup_role_arn: "{{ hostvars['localhost'].db_backup_role_arn }}"
+  roles:
+  - db-backup
