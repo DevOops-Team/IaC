@@ -12,11 +12,13 @@ locals {
           Resource = ["${local.checkpoint_arn}/code/*", "${local.checkpoint_arn}/datasets/*"]
         },
         {
-          # 잡 상세: code/<id>/config.json 읽기 · 제출 파일 미리보기, 업로드 manifest.json 크기 (Backend job.go, GPU-185). 삭제 없음
+          # 잡 상세: code/<id>/config.json 읽기 · 제출 파일 미리보기, 업로드 manifest.json 크기 (Backend job.go, GPU-185).
+          # 학습 완료 모델: jobs/<id>/gen-N/step-N/manifest.json과 그 파일 스트리밍 (Backend model.go, GPU-190).
+          # 키는 manifest에 적힌 것만 읽으므로 jobs/ 나열(ListBucket)은 주지 않는다. 삭제 없음
           Sid      = "ReadSubmission"
           Effect   = "Allow"
           Action   = "s3:GetObject"
-          Resource = ["${local.checkpoint_arn}/code/*", "${local.checkpoint_arn}/datasets/*"]
+          Resource = ["${local.checkpoint_arn}/code/*", "${local.checkpoint_arn}/datasets/*", "${local.checkpoint_arn}/jobs/*"]
         },
         {
           # 파일 목록: code/<id>/ 아래만 나열 (Backend Files). 다른 접두어(jobs/ · backups/)는 못 본다
