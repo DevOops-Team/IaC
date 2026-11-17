@@ -56,6 +56,7 @@ module "hub_eks_a" {
   cluster_endpoint   = module.eks["a"].cluster_endpoint
   cluster_ca_data    = module.eks["a"].cluster_certificate_authority_data
   admin_access_ready = module.eks["a"].admin_access_policy_association_id
+  gpu_quota          = { training = local.clusters["a"].training, spare = local.clusters["a"].spare }
 
   providers = {
     kubernetes.eks    = kubernetes.eks_a
@@ -70,6 +71,7 @@ module "hub_eks_b" {
   cluster_endpoint   = module.eks["b"].cluster_endpoint
   cluster_ca_data    = module.eks["b"].cluster_certificate_authority_data
   admin_access_ready = module.eks["b"].admin_access_policy_association_id
+  gpu_quota          = { training = local.clusters["b"].training, spare = local.clusters["b"].spare }
 
   providers = {
     kubernetes.eks    = kubernetes.eks_b
@@ -84,6 +86,7 @@ module "hub_eks_c" {
   cluster_endpoint   = module.eks["c"].cluster_endpoint
   cluster_ca_data    = module.eks["c"].cluster_certificate_authority_data
   admin_access_ready = module.eks["c"].admin_access_policy_association_id
+  gpu_quota          = { training = local.clusters["c"].training, spare = local.clusters["c"].spare }
 
   providers = {
     kubernetes.eks    = kubernetes.eks_c
