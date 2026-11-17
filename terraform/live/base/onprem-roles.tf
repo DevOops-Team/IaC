@@ -12,6 +12,21 @@ locals {
           Resource = ["${local.checkpoint_arn}/code/*", "${local.checkpoint_arn}/datasets/*"]
         },
         {
+          # 잡 상세: code/<id>/config.json 읽기 · 제출 파일 미리보기, 업로드 manifest.json 크기 (Backend job.go, GPU-185). 삭제 없음
+          Sid      = "ReadSubmission"
+          Effect   = "Allow"
+          Action   = "s3:GetObject"
+          Resource = ["${local.checkpoint_arn}/code/*", "${local.checkpoint_arn}/datasets/*"]
+        },
+        {
+          # 파일 목록: code/<id>/ 아래만 나열 (Backend Files). 다른 접두어(jobs/ · backups/)는 못 본다
+          Sid       = "ListSubmission"
+          Effect    = "Allow"
+          Action    = "s3:ListBucket"
+          Resource  = local.checkpoint_arn
+          Condition = { StringLike = { "s3:prefix" = ["code/*"] } }
+        },
+        {
           Sid      = "CreateAndReadInitialFencing"
           Effect   = "Allow"
           Action   = ["dynamodb:PutItem", "dynamodb:GetItem"]
