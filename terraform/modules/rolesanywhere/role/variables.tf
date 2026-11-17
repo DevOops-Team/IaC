@@ -11,8 +11,9 @@ variable "account_id" {
   type = string
 }
 
-variable "trust_anchor_arn" {
-  type = string
+variable "trust_anchor_arns" {
+  description = "이 역할을 맡을 수 있는 trust anchor ARN 목록."
+  type        = list(string)
 }
 
 variable "policy_name" {

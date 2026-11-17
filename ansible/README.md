@@ -11,6 +11,7 @@ ADR-11에 따라 개인 PC에서 필요할 때 수동으로 VM 6대 공통 준�
 | Argo CD HA 최초 설치/명시적 업그레이드 | bootstrap/install-argocd.yml |
 | 비밀값 등록·갱신 | bootstrap/seed-secrets.yml |
 | GitOps project/root 최초 등록 | bootstrap/register-root.yml |
+| 모니터링 클러스터를 Argo CD 원격 클러스터로 등록 (GPU-177) | bootstrap/register-monitoring-cluster.yml |
 | 외부 Cloudflare 계정 리소스 | network/configure-cloudflare.yml |
 | 설치 후 부트스트랩 묶음 | site.yml |
 

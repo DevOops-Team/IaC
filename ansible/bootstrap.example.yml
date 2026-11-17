@@ -1,5 +1,7 @@
 bootstrap_config_confirmed: false
 manager_context: YOUR_ONPREM_CONTEXT
+# register-monitoring-cluster.yml (GPU-177): 모니터링 클러스터 kubeconfig context
+monitoring_context: YOUR_MONITORING_CONTEXT
 gitops_repo_url: https://github.com/DevOops-Team/Gitops.git
 gitops_root_dir: /absolute/path/Gitops/bootstrap/onprem
 edge_domain: devoops.site

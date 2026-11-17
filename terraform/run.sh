@@ -171,8 +171,11 @@ stack_args() { # plan · apply · destroy에 붙일 -var-file과 사전 검사
   [ -f "$TF_DIR/$(stack_dir "$s")/terraform.local.tfvars" ] && ARGS+=("-var-file=terraform.local.tfvars")
   case "$s" in
     base)
-      [ -n "${TF_VAR_ca_certificate_path:-}" ] || export TF_VAR_ca_certificate_path="$CA_CERT"
-      [ -f "$TF_VAR_ca_certificate_path" ] || die "CA 공개 인증서가 없습니다: ${TF_VAR_ca_certificate_path} (bootstrap/certs.sh 참고, CA_CERT로 경로 지정)"
+      # primary CA 경로는 live/base/terraform.local.tfvars가 있으면 그 값을 쓴다 (CA를 추가 · 교체한 PC는 여기에 적는다)
+      if ! grep -qs '^ca_certificate_path' "$TF_DIR/live/base/terraform.local.tfvars"; then
+        [ -n "${TF_VAR_ca_certificate_path:-}" ] || export TF_VAR_ca_certificate_path="$CA_CERT"
+        [ -f "$TF_VAR_ca_certificate_path" ] || die "CA 공개 인증서가 없습니다: ${TF_VAR_ca_certificate_path} (bootstrap/certs.sh 참고, CA_CERT로 경로 지정)"
+      fi
       if [ "$(network_enabled)" = true ] && [ -z "${TF_VAR_customer_gateway_ip:-}" ] \
          && ! grep -qs '^customer_gateway_ip' "$TF_DIR/live/base/terraform.local.tfvars"; then
         die "network.enabled: true에는 온프레 공인 IP가 필요합니다: TF_VAR_customer_gateway_ip 또는 live/base/terraform.local.tfvars"
