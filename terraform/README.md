@@ -10,7 +10,7 @@ terraform/
 ├─ state/                    ① Terraform state 버킷 (계정마다 한 번)
 ├─ live/                     실행 단위 (state 파일 하나씩)
 │  ├─ base/                  ② 영속 + 기반: S3 · DynamoDB · Roles Anywhere · VPC   state 키 prod/base
-│  │  ├─ storage.tf             module checkpoint · monitoring (s3), fencing (dynamodb)
+│  │  ├─ storage.tf             module checkpoint · monitoring (s3), fencing · recovery (dynamodb)
 │  │  ├─ onprem-roles.tf        온프레 워크로드별 AWS 권한 → module rolesanywhere
 │  │  └─ network.tf             module vpc (config network.enabled)
 │  └─ eks/                   ③ 켜고 끄는 것: EKS · GPU 노드그룹 · 온프레 허브 등록   state 키 prod/eks
@@ -49,6 +49,11 @@ terraform/run.sh validate                      # 자격 증명 없이 문법 (CI
 | 온프레 공인 IP (base, network.enabled) | `live/base/terraform.local.tfvars`의 `customer_gateway_ip` (Git 제외) |
 | 온프레 kubeconfig (eks) | `~/.kube/devoops-onprem.yaml` 또는 `ONPREM_KUBECONFIG=` |
 | SOCKS 프록시 (eks) | `--proxy` (ssh -D 1080 k8s-master1) |
+
+복구 컨트롤러 전용 DynamoDB 테이블은 base에서 기존 펜싱 테이블과 별도로 관리한다.
+`terraform/run.sh plan base`로 변경을 검토한 다음 `terraform/run.sh apply base`로 생성한다.
+`terraform/run.sh output base -- recovery_table`에서 이름과 ARN을 확인하고, 이름을 복구 컨트롤러의
+`recovery_table` 설정에 전달한다. 이미 같은 이름의 테이블이 있으면 먼저 Terraform state로 인계한다.
 
 ## config에 추가하는 방법 (`config/prod.yaml`)
 
