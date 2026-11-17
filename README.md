@@ -66,12 +66,12 @@ GPU는 EKS Managed Node Group으로 관리합니다 (Karpenter 안 씀, ADR-25).
 
 | 프로필 | 클러스터 | 시스템 CPU (On-Demand) | GPU (모두 Spot) |
 | --- | --- | --- | --- |
-| test (기본) | A / B | 각각 t3.large 1대 | A: 학습 2대 고정 / B: 0대 |
+| test (기본) | A / B | 각각 t3.large 1대 | 각각 학습 4대 + 예비 1대 고정 (총 10대) |
 | full (최종 목표) | A / B / C | 각각 t3.large 1대 | 각각 학습 4대 + 예비 1대 고정 |
 
-test는 `g4dn.xlarge` 2대(총 8vCPU)만 허용합니다. full은 `g4dn.xlarge`·`g4dn.2xlarge`(각 T4 1장)를 허용합니다. A/B/C의 노드는 config `eks.clusters.<x>.az_index`의 AZ(us-east-2a/b/c), EKS 제어부는 여러 AZ 서브넷을 사용합니다. 활성 GPU 그룹은 최소=희망=최대 수량으로 고정하므로 Karpenter·Cluster Autoscaler·노드 유지용 자리 표시 Pod를 사용하지 않습니다. test B는 GPU 그룹 자체가 없으며 Pod 요청만으로 GPU를 만들지 않습니다.
+test는 `g4dn.xlarge` 10대(총 40vCPU)로 구성합니다. full은 `g4dn.xlarge`·`g4dn.2xlarge`(각 T4 1장)를 허용합니다. A/B/C의 노드는 config `eks.clusters.<x>.az_index`의 AZ(us-east-2a/b/c), EKS 제어부는 여러 AZ 서브넷을 사용합니다. 활성 GPU 그룹은 최소=희망=최대 수량으로 고정하므로 Karpenter·Cluster Autoscaler·노드 유지용 자리 표시 Pod를 사용하지 않습니다. Pod 요청만으로 GPU 노드를 추가하지 않습니다.
 
-- 프로필: `config/prod.yaml`의 `eks.topology`(기본 test) 또는 `run.sh --topology test|full`. full→test 전환은 C와 예비 그룹 삭제/축소를 포함할 수 있어 별도 검토가 필요합니다.
+- 프로필: `config/prod.yaml`의 `eks.topology`(기본 test) 또는 `run.sh --topology test|full`. full→test 전환은 C 삭제와 허용 인스턴스 유형 변경을 포함할 수 있어 별도 검토가 필요합니다.
 - 인프라 상한/유형/배치와 실행 전 조건: [관리형 GPU 구성·전환 안내](terraform/docs/MANAGED-GPU.md).
 - NVIDIA 플러그인 설정은 `terraform/run.sh output eks -- -json gpu_bootstrap`, 클러스터별 endpoint·Pod Identity·GPU 그룹은 `terraform/run.sh output eks -- -json eks_clusters`로 전달합니다. 플러그인 설치와 Kueue·JobSet·큐/RBAC는 쿠버 담당자가 GitOps에서 관리합니다.
 - 예비 그룹만 `devoops/spare=true:NoSchedule` taint를 가집니다. NVIDIA 플러그인은 GPU·예비 taint 모두 허용합니다. 일반 학습에는 예비 toleration을 주지 않습니다.

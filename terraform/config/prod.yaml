@@ -69,10 +69,10 @@ eks:
     b: { service_cidr: 10.101.0.0/16, az_index: 1 }
     c: { service_cidr: 10.102.0.0/16, az_index: 2 }
   topologies:              # GPU는 모두 Spot, 최소 = 희망 = 최대로 고정 (ADR-25, Karpenter 없음)
-    test:                  # g4dn.xlarge 2대 = 8 vCPU (Spot G/VT 쿼터 안)
+    test:                  # A/B 각각 학습 4 + 예비 1, g4dn.xlarge 총 10대 = 40 vCPU
       clusters: [a, b]
       gpu_instance_types: [g4dn.xlarge]
-      gpu: { a: { training: 2, spare: 0 }, b: { training: 0, spare: 0 } }
+      gpu: { a: { training: 4, spare: 1 }, b: { training: 4, spare: 1 } }
     full:                  # 15대. 쿼터 확인 뒤에만
       clusters: [a, b, c]
       gpu_instance_types: [g4dn.xlarge, g4dn.2xlarge]
