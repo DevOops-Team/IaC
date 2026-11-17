@@ -1,0 +1,12 @@
+# {{ ansible_managed }} — roles/db-backup (GPU-181)
+[Unit]
+Description=Daily data DB backup (GPU-128)
+
+[Timer]
+OnCalendar={{ db_backup_calendar }}
+RandomizedDelaySec=300
+# VM이 꺼져 있어서 놓치면 켜진 직후 한 번 실행
+Persistent=true
+
+[Install]
+WantedBy=timers.target

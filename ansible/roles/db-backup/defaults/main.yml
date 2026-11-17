@@ -1,0 +1,15 @@
+---
+db_backup_db: gpuf_data
+db_backup_prefix: backups/db
+db_backup_dir: /var/backups/gpuf_data
+db_backup_keep_local: 3
+db_backup_calendar: "*-*-* 04:00:00 Asia/Seoul"
+db_backup_aws_profile: db-backup
+db_backup_region: us-east-2
+db_backup_cert: /etc/devoops-aws/client.pem
+db_backup_key: /etc/devoops-aws/client.key
+db_backup_cert_warn_days: 7            # 만료가 이만큼 남으면 경고 (30일 인증서, 갱신 절차는 roles/db-backup/README.md)
+db_backup_signing_helper: /usr/local/bin/aws_signing_helper
+db_backup_signing_helper_version: "1.8.6"   # 관리 클러스터 sidecar와 같은 버전 (K8s aws-signing-helper/)
+db_backup_signing_helper_src: ""       # 주면 이 파일로 helper를 바꾼다 (GPU-182)
+db_backup_run_now: false
