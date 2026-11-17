@@ -55,6 +55,9 @@ resource "kubernetes_secret_v1" "argocd_cluster" {
     labels = {
       "argocd.argoproj.io/secret-type" = "cluster"
       "devoops.site/gpu-worker"        = "true"
+      # 워커 Kueue 할당량 (GPU-199): Gitops ApplicationSet gpu-eks-scheduling이 train-cq · recovery-cq에 넣는다
+      "devoops.site/train-gpus" = tostring(var.gpu_quota.training)
+      "devoops.site/spare-gpus" = tostring(var.gpu_quota.spare)
     }
   }
   data = {
