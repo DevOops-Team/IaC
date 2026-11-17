@@ -1,6 +1,6 @@
 # EKS 관리형 GPU 노드 — 코드 변경, 적용 전
 
-기준 2026-11-11 사용자 결정. 쉘/ON-OFF 자동화 작업은 중단하고 Terraform부터 변경. 실제 apply·Helm 삭제·Kubernetes 변경은 실행하지 않는다. 이어질 2번 이후 요구사항은 아직 별도 논의 대상이다.
+기준 2026-11-17 사용자 결정(GPU-164). test는 EKS A/B 각각 학습 GPU 4대 + 예비 GPU 1대, 총 10대다. 이 변경은 코드·테스트 기준이며 실제 배포·GPU Ready 확인은 별도다.
 
 ## 현재 테스트와 최종 목표
 
@@ -8,15 +8,15 @@
 
 | 프로필 | EKS | 노드 AZ | CPU 온디맨드 | GPU Spot 학습 | GPU Spot 예비 | Service CIDR |
 | --- | --- | --- | --- | --- | --- | --- |
-| test | eks-a | us-east-2a | t3.large 1 | 2 | 0 | 10.100.0.0/16 |
-| test | eks-b | us-east-2b | t3.large 1 | 0 | 0 | 10.101.0.0/16 |
+| test | eks-a | us-east-2a | t3.large 1 | 4 | 1 | 10.100.0.0/16 |
+| test | eks-b | us-east-2b | t3.large 1 | 4 | 1 | 10.101.0.0/16 |
 | full | eks-a | us-east-2a | t3.large 1 | 4 | 1 | 10.100.0.0/16 |
 | full | eks-b | us-east-2b | t3.large 1 | 4 | 1 | 10.101.0.0/16 |
 | full | eks-c | us-east-2c | t3.large 1 | 4 | 1 | 10.102.0.0/16 |
 
 - EKS 제어부의 private subnet은 기존 여러 AZ 유지. 위 AZ는 CPU/GPU 워커 그룹의 배치다. 동일 VPC·기존 VPN/NAT/Gateway Endpoint를 공유한다.
 - EKS A의 module.eks_a 주소를 유지해 단순 코드 정리로 기존 A를 재생성하지 않게 했다. B는 module.eks_b, C는 full일 때만 module.eks_c[0].
-- CPU는 시스템 Pod용이며 Karpenter Pod는 설치하지 않는다. GPU 없는 test B는 요청만으로 GPU 노드를 생성하지 않는다.
+- CPU는 시스템 Pod용이며 Karpenter Pod는 설치하지 않는다. Pod 요청만으로 GPU 노드를 추가하지 않는다.
 - GPU를 0대로 설정한 그룹은 생성하지 않는다. 활성 그룹은 min=desired=max. full 목표는 15노드/15GPU지만 Spot 회수·용량 부족·교체 중 실제 정상 노드 수를 항상 보장하지 않는다. ASG의 Spot Capacity Rebalancing도 일시적 수량 변동을 일으킬 수 있다.
 - 관리형 그룹 자체가 수량을 유지하므로 노드 유지용 placeholder Pod는 불필요. 예비 taint/복구 작업 toleration은 유지한다. GPU를 쥔 placeholder를 기존처럼 배포하면 GPU 1장을 불필요하게 점유하므로 담당자 overlay에서 제거/비활성화해야 한다.
 
@@ -35,9 +35,9 @@
 
 ## 할당량 — 현재 배포 전 제한
 
-읽기 조회 결과 us-east-2 All G and VT Spot Instance Requests=8 vCPU, GPU On-Demand=0. user 요청대로 모든 GPU는 Spot이며 CPU t3.large 온디맨드는 별도 일반 인스턴스 할당량 사용.
+2026-11-17 읽기 조회 결과 us-east-2 All G and VT Spot Instance Requests=40 vCPU. 모든 GPU는 Spot이며 CPU t3.large 온디맨드는 별도 일반 인스턴스 할당량을 사용한다. 적용 직전 할당량과 사용량을 다시 확인한다.
 
-- test A는 g4dn.xlarge만 허용하며 GPU2대=8vCPU로 현재 할당량에 맞춘다. 해당 리전의 다른 G/VT Spot 사용량이 없다는 전제이며, Spot 공급 자체는 보장하지 않는다.
+- test A/B는 g4dn.xlarge만 허용하며 각각 학습 4 + 예비 1대, 총 GPU10대=40vCPU로 현재 할당량을 사용한다. 해당 리전의 다른 G/VT Spot 사용량이 없다는 전제이며, Spot 공급 자체는 보장하지 않는다.
 - full GPU15대는 모두 xlarge여도60vCPU, 모두2xlarge면120vCPU. 리전 전체의 다른 G/VT Spot도 같은 quota를 사용한다. full은 현재 quota로 배포할 수 없다.
 - Terraform plan 성공은 Spot 공급/할당량 확보나 노드 Ready의 증명이 아니다. 이번에는 quota 변경을 요청하거나 실제 인스턴스를 생성하지 않는다.
 
@@ -51,7 +51,7 @@ terraform/run.sh plan eks --topology test --proxy
 terraform/run.sh plan eks --topology full --proxy
 ```
 
-두 프로필은 **동일 state/동일 prod 리소스 이름**을 사용한다. 서로 독립된 환경을 동시에 만드는 용도가 아니다. full→test는 C 삭제·A 축소·예비 삭제를 포함할 수 있다. 저장 plan의 적용은 선택한 프로필을 정확히 검토한 뒤 별도 실행한다.
+두 프로필은 **동일 state/동일 prod 리소스 이름**을 사용한다. 서로 독립된 환경을 동시에 만드는 용도가 아니다. full→test는 C 삭제와 허용 인스턴스 유형 변경을 포함할 수 있다. 저장 plan의 적용은 선택한 프로필을 정확히 검토한 뒤 별도 실행한다.
 
 ## 검증
 
