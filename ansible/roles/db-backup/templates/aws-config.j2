@@ -1,0 +1,4 @@
+# {{ ansible_managed }} — roles/db-backup (GPU-181). 값은 Terraform live/base 출력
+[profile {{ db_backup_aws_profile }}]
+region = {{ db_backup_region }}
+credential_process = {{ db_backup_signing_helper }} credential-process --certificate {{ db_backup_cert }} --private-key {{ db_backup_key }} --trust-anchor-arn {{ db_backup_trust_anchor_arn }} --profile-arn {{ db_backup_profile_arn }} --role-arn {{ db_backup_role_arn }}

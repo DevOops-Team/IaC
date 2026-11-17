@@ -14,11 +14,27 @@ locals {
         {
           # 잡 상세: code/<id>/config.json 읽기 · 제출 파일 미리보기, 업로드 manifest.json 크기 (Backend job.go, GPU-185).
           # 학습 완료 모델: jobs/<id>/gen-N/step-N/manifest.json과 그 파일 스트리밍 (Backend model.go, GPU-190).
-          # 키는 manifest에 적힌 것만 읽으므로 jobs/ 나열(ListBucket)은 주지 않는다. 삭제 없음
+          # 키는 manifest에 적힌 것만 읽으므로 jobs/ 나열(ListBucket)은 주지 않는다
           Sid      = "ReadSubmission"
           Effect   = "Allow"
           Action   = "s3:GetObject"
           Resource = ["${local.checkpoint_arn}/code/*", "${local.checkpoint_arn}/datasets/*", "${local.checkpoint_arn}/jobs/*"]
+        },
+        {
+          # 끝난 학습 삭제 (Backend DELETE /api/jobs/{id}, GPU-196): 체크포인트 · 최종 모델 · 제출 · 업로드를
+          # 버전과 삭제 표시까지 영구 삭제 (버킷 버전 관리 켜짐). backups/ 등 다른 접두어는 못 지운다
+          Sid      = "DeleteFinishedJob"
+          Effect   = "Allow"
+          Action   = ["s3:DeleteObject", "s3:DeleteObjectVersion"]
+          Resource = ["${local.checkpoint_arn}/code/*", "${local.checkpoint_arn}/datasets/*", "${local.checkpoint_arn}/jobs/*"]
+        },
+        {
+          # 삭제할 버전 나열: 같은 세 접두어만
+          Sid       = "ListFinishedJobVersions"
+          Effect    = "Allow"
+          Action    = "s3:ListBucketVersions"
+          Resource  = local.checkpoint_arn
+          Condition = { StringLike = { "s3:prefix" = ["code/*", "datasets/*", "jobs/*"] } }
         },
         {
           # 파일 목록: code/<id>/ 아래만 나열 (Backend Files). 다른 접두어(jobs/ · backups/)는 못 본다

@@ -1,0 +1,11 @@
+---
+# 데이터 DB VM (PostgreSQL 16 gpuf_data). Proxmox VMID 150 (GPU-179)
+all:
+  hosts:
+    db:
+      ansible_host: 172.30.0.50
+      ansible_user: db
+  children:
+    data_db:
+      hosts:
+        db: {}

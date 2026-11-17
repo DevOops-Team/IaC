@@ -1,0 +1,133 @@
+---
+- name: Require Terraform-derived values
+  ansible.builtin.assert:
+    that:
+    - db_backup_bucket | length > 0
+    - db_backup_trust_anchor_arn is match('^arn:aws:rolesanywhere:')
+    - db_backup_profile_arn is match('^arn:aws:rolesanywhere:')
+    - db_backup_role_arn is match('^arn:aws:iam::')
+    fail_msg: 버킷 · ARN이 비었다. aws sso login 뒤 다시 실행하거나 -e로 준다 (playbooks/data/db-backup.yml 머리말)
+
+# ---- 인증서 (Git 밖, VM에 있는 것을 확인만) ----
+- name: Check client certificate and key
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: ["{{ db_backup_cert }}", "{{ db_backup_key }}"]
+  register: db_backup_cert_files
+- name: Require certificate and key (root-only key)
+  ansible.builtin.assert:
+    that:
+    - db_backup_cert_files.results[0].stat.exists
+    - db_backup_cert_files.results[1].stat.exists
+    - db_backup_cert_files.results[1].stat.mode in ['0600', '0400']
+    fail_msg: 인증서가 없다. 갱신 절차는 roles/db-backup/README.md
+- name: Certificate expiry check
+  ansible.builtin.command:
+    argv: [openssl, x509, -in, "{{ db_backup_cert }}", -noout, -enddate, -checkend, "{{ db_backup_cert_warn_days | int * 86400 }}"]
+  register: db_backup_cert_end
+  changed_when: false
+  check_mode: false     # 읽기만 하므로 --check에서도 실행
+  failed_when: false
+- name: Warn when the certificate expires soon
+  ansible.builtin.debug:
+    msg: "인증서 만료 임박: {{ db_backup_cert_end.stdout_lines[0] | default('?') }} — roles/db-backup/README.md 갱신 절차"
+  when: db_backup_cert_end.rc != 0
+
+# ---- 도구 ----
+- name: Require AWS CLI and pg_dump
+  ansible.builtin.command: "{{ item }} --version"
+  loop: [aws, pg_dump]
+  changed_when: false
+  check_mode: false     # 읽기만 하므로 --check에서도 실행
+- name: Replace aws_signing_helper (GPU-182)
+  ansible.builtin.copy:
+    src: "{{ db_backup_signing_helper_src }}"
+    dest: "{{ db_backup_signing_helper }}"
+    owner: root
+    group: root
+    mode: "0755"
+  when: db_backup_signing_helper_src | length > 0
+- name: Read aws_signing_helper version
+  ansible.builtin.command: "{{ db_backup_signing_helper }} version"
+  register: db_backup_helper_version
+  changed_when: false
+  check_mode: false     # 읽기만 하므로 --check에서도 실행
+- name: Warn when helper version differs from the cluster sidecar
+  ansible.builtin.debug:
+    msg: "aws_signing_helper {{ db_backup_helper_version.stdout }} ≠ {{ db_backup_signing_helper_version }} (db_backup_signing_helper_src로 교체)"
+  when: db_backup_helper_version.stdout | trim != db_backup_signing_helper_version
+
+# ---- 설정 · 스크립트 · 타이머 ----
+- name: AWS profile directory
+  ansible.builtin.file:
+    path: /root/.aws
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+- name: AWS profile for backups (credential_process, Terraform values)
+  ansible.builtin.template:
+    src: aws-config.j2
+    dest: /root/.aws/config
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
+- name: Backup script directory
+  ansible.builtin.file:
+    path: /opt/db-backup
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+- name: Backup script
+  ansible.builtin.template:
+    src: backup.sh.j2
+    dest: /opt/db-backup/backup.sh
+    owner: root
+    group: root
+    mode: "0755"
+    validate: /bin/sh -n %s
+    backup: true
+- name: systemd service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: [gpuf-db-backup.service, gpuf-db-backup.timer]
+  register: db_backup_units
+- name: Enable the daily timer
+  ansible.builtin.systemd_service:
+    name: gpuf-db-backup.timer
+    enabled: true
+    state: started
+    daemon_reload: "{{ db_backup_units is changed }}"
+
+# ---- 확인 ----
+- name: Check the backup identity
+  ansible.builtin.command:
+    argv: [aws, --profile, "{{ db_backup_aws_profile }}", sts, get-caller-identity, --query, Arn, --output, text]
+  register: db_backup_identity
+  changed_when: false
+  check_mode: false     # 읽기만 하므로 --check에서도 실행
+- name: Require the db-backup role
+  ansible.builtin.assert:
+    that: db_backup_identity.stdout is search('assumed-role/' ~ (db_backup_role_arn | regex_replace('^.*:role/', '')) ~ '/')
+- name: Run one backup now
+  ansible.builtin.systemd_service:
+    name: gpuf-db-backup.service
+    state: started
+  when: db_backup_run_now | bool
+- name: Last backup result
+  ansible.builtin.command:
+    argv: [journalctl, -u, gpuf-db-backup.service, -n, "20", -o, cat, --no-pager]
+  register: db_backup_journal
+  changed_when: false
+  check_mode: false     # 읽기만 하므로 --check에서도 실행
+  when: db_backup_run_now | bool
+- name: Require backup.done
+  ansible.builtin.assert:
+    that: db_backup_journal.stdout is search('"event":"backup.done"')
+  when: db_backup_run_now | bool

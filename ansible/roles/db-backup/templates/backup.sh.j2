@@ -1,0 +1,74 @@
+#!/bin/sh
+# {{ ansible_managed }} — roles/db-backup (GPU-181). 원본: Data db/backup/backup.sh (GPU-128)
+# 데이터 DB 백업 (GPU-128, ADR-14): pg_dump -Fc → S3 backups/db/
+#
+# DB VM에서 root로 실행 (systemd 타이머가 매일 04:00 KST에 부름).
+# - S3 인증: root의 AWS 프로필 db-backup (Roles Anywhere, /etc/devoops-aws/ 인증서). 권한은 backups/db/* 쓰기만
+# - 파일 이름에 UTC 시각을 넣어 덮어쓰지 않는다. S3 보관 30일은 버킷 수명 주기 규칙이 처리 (삭제 권한 없음)
+# - 덤프와 같은 시점의 표별 행 수를 <이름>.counts.json으로 함께 올린다 → 복원 시험(restore_test.sh)이 비교
+# - 실패하면 0이 아닌 값으로 끝난다 → systemd에 실패로 남음 (journalctl -u gpuf-db-backup)
+set -eu
+
+DB=${DB:-{{ db_backup_db }}}
+BUCKET=${BACKUP_BUCKET:-{{ db_backup_bucket }}}
+PREFIX=${BACKUP_PREFIX:-{{ db_backup_prefix }}}
+DIR=${BACKUP_DIR:-{{ db_backup_dir }}}
+KEEP_LOCAL=${KEEP_LOCAL:-{{ db_backup_keep_local }}}
+export AWS_PROFILE=${AWS_PROFILE:-{{ db_backup_aws_profile }}}
+
+ts=$(date -u +%Y%m%dT%H%M%SZ)
+name="$DB-$ts.dump"
+install -d -m 700 "$DIR"
+part="$DIR/.$name.part"
+trap 'rm -f "$part" "$DIR/.$name.counts" "$DIR/.$name.fifo"' EXIT
+
+log() { printf '{"ts":"%s","event":"%s"%s}\n' "$(date -u +%FT%TZ)" "$1" "${2:-}"; }
+
+# 1) 덤프와 행 수를 같은 스냅숏에서: 행 수를 세는 트랜잭션의 스냅숏을 내보내 pg_dump가 그대로 쓴다
+#    (그 사이 수집기가 쓴 행은 둘 다에 안 들어가서 숫자가 정확히 맞는다)
+start=$(date +%s)
+fifo="$DIR/.$name.fifo"; rm -f "$fifo"; mkfifo -m 600 "$fifo"; chown postgres "$fifo"
+runuser -u postgres -- psql -X -q -d "$DB" -v ON_ERROR_STOP=1 -At <"$fifo" >"$DIR/.$name.counts" 2>&1 &
+psql_pid=$!
+exec 3>"$fifo"
+cat >&3 <<'SQL'
+BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
+SELECT 'snapshot=' || pg_export_snapshot();
+SELECT 'count=' || n.nspname || '.' || c.relname || '=' ||
+       (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM %I.%I', n.nspname, c.relname), false, true, '')))[1]::text
+  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+ WHERE c.relkind = 'r' AND n.nspname = 'data' ORDER BY 1;
+SELECT 'ready';
+SQL
+# psql이 스냅숏 · 행 수를 다 쓸 때까지 기다림 (트랜잭션은 열어 둠)
+i=0; until grep -q '^ready$' "$DIR/.$name.counts" 2>/dev/null; do
+  i=$((i + 1)); [ $i -le 300 ] || { log backup.failed ',"stage":"snapshot"'; exit 1; }
+  kill -0 $psql_pid 2>/dev/null || { cat "$DIR/.$name.counts" >&2; log backup.failed ',"stage":"snapshot"'; exit 1; }
+  sleep 0.2
+done
+snap=$(sed -n 's/^snapshot=//p' "$DIR/.$name.counts")
+runuser -u postgres -- pg_dump -Fc --snapshot="$snap" -d "$DB" >"$part"
+echo 'COMMIT;' >&3; exec 3>&-; wait $psql_pid; rm -f "$fifo"
+
+# 2) 덤프가 읽히는지 확인 (목차만)
+pg_restore -l "$part" >/dev/null
+mv "$part" "$DIR/$name"
+size=$(stat -c %s "$DIR/$name")
+sha=$(sha256sum "$DIR/$name" | cut -d' ' -f1)
+
+# 3) 행 수 JSON (복원 시험 비교용)
+{
+  printf '{"db":"%s","dump":"%s","sha256":"%s","size_bytes":%s,"taken_at":"%s","counts":{' "$DB" "$name" "$sha" "$size" "$ts"
+  sed -n 's/^count=//p' "$DIR/.$name.counts" | awk -F= 'BEGIN{s=""} {printf "%s\"%s\":%s", s, $1, $2; s=","}'
+  printf '}}\n'
+} >"$DIR/$name.counts.json"
+rm -f "$DIR/.$name.counts"
+
+# 4) S3 업로드 (덤프 먼저, 행 수 파일은 마지막 = 업로드 완료 표시)
+aws s3 cp "$DIR/$name" "s3://$BUCKET/$PREFIX/$name" --only-show-errors --metadata "sha256=$sha"
+aws s3 cp "$DIR/$name.counts.json" "s3://$BUCKET/$PREFIX/$name.counts.json" --only-show-errors
+
+# 5) 로컬 사본은 최근 KEEP_LOCAL개만
+ls -1t "$DIR"/"$DB"-*.dump 2>/dev/null | tail -n +$((KEEP_LOCAL + 1)) | while read -r old; do rm -f "$old" "$old.counts.json"; done
+
+log backup.done ",\"key\":\"$PREFIX/$name\",\"size_bytes\":$size,\"sha256\":\"$sha\",\"seconds\":$(( $(date +%s) - start ))"
