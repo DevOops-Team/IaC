@@ -130,16 +130,19 @@ run "two_cluster_test_without_autoscaling" {
   }
 
   assert {
-    condition = (
-      toset(keys(output.eks_clusters.a.gpu_node_groups)) == toset(["training"]) &&
-      toset(output.eks_clusters.a.gpu_node_groups.training.instance_types) == toset(["g4dn.xlarge"]) &&
-      output.eks_clusters.a.gpu_node_groups.training.capacity_type == "SPOT" &&
-      output.eks_clusters.a.gpu_node_groups.training.scaling.min_size == 2 &&
-      output.eks_clusters.a.gpu_node_groups.training.scaling.desired_size == 2 &&
-      output.eks_clusters.a.gpu_node_groups.training.scaling.max_size == 2 &&
-      length(output.eks_clusters.b.gpu_node_groups) == 0
-    )
-    error_message = "test A는 g4dn.xlarge Spot 2대 고정(8 vCPU), B는 GPU 그룹이 없어야 한다."
+    condition = alltrue([
+      for cluster in values(output.eks_clusters) :
+      toset(keys(cluster.gpu_node_groups)) == toset(["training", "spare"]) &&
+      alltrue([
+        for role, group in cluster.gpu_node_groups :
+        toset(group.instance_types) == toset(["g4dn.xlarge"]) &&
+        group.capacity_type == "SPOT" &&
+        group.scaling.min_size == (role == "training" ? 4 : 1) &&
+        group.scaling.desired_size == group.scaling.min_size &&
+        group.scaling.max_size == group.scaling.min_size
+      ])
+    ])
+    error_message = "test A/B는 각각 g4dn.xlarge Spot 학습 4 + 예비 1대, 총 GPU 10대(40 vCPU)여야 한다."
   }
 
   assert {
