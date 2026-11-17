@@ -35,6 +35,11 @@ fencing_table:
   hash_key: job_id
   pitr_days: 35
 
+# 복구 사건 · 진행 상태 · 증거. 이름: <prefix>-recovery
+recovery_table:
+  hash_key: pk
+  pitr_days: 35
+
 # ---------------------------------------------------------------- base: 온프레 → AWS 인증
 # 워크로드 목록. 인증서 CN = <prefix>-<이름> (bootstrap/certs.sh). 권한은 live/base/onprem-roles.tf
 onprem_workloads: [backend, recovery, relocator, multikueue, db-backup, mimir, loki, tempo]

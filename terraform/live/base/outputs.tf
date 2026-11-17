@@ -21,6 +21,10 @@ output "fencing_table" {
   value = { name = module.fencing.name, arn = module.fencing.arn }
 }
 
+output "recovery_table" {
+  value = { name = module.recovery.name, arn = module.recovery.arn }
+}
+
 output "onprem_role_arns" {
   value = module.rolesanywhere.role_arns
 }
