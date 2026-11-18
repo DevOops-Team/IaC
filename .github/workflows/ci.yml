@@ -13,6 +13,22 @@ env:
   TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform-plugin-cache
 
 jobs:
+  pfsense-ansible:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install ansible-core==2.20.0
+      - run: ansible-galaxy collection install -r requirements-pfsense.yml
+        working-directory: ansible
+      - name: pfSense 플레이북 문법 검사 (방화벽 접속 없음)
+        working-directory: ansible
+        run: |
+          ansible-playbook -i localhost, playbooks/network/configure-pfsense-edge.yml --syntax-check
+          ansible-playbook -i localhost, playbooks/network/configure-pfsense-edge.yml -e @pfsense-ipsec.example.yml --syntax-check
+
   pfsense-policy:
     runs-on: ubuntu-24.04
     steps:

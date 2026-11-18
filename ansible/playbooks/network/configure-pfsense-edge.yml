@@ -1,4 +1,4 @@
-- name: Forward public HTTPS through pfSense to Traefik
+- name: Configure pfSense HTTPS forwarding and EKS IPsec service access
   hosts: pfsense_edge
   gather_facts: false
   serial: 1
