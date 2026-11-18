@@ -3,7 +3,7 @@ name: ci
 on:
   pull_request:
   push:
-    branches: [develop, main]
+    branches: [main]   # develop 커밋은 PR에서 점검 — push까지 걸면 같은 커밋이 두 번 돈다 (GPU-214)
 
 permissions:
   contents: read
