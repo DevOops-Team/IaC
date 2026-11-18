@@ -54,3 +54,36 @@ ansible-playbook -i inventory/pfsense/hosts.local.yml playbooks/network/configur
 롤백은 같은 입력에 `-e pfsense_edge_state=absent`를 추가하여 이 NAT와 연계 규칙만 제거한다. 전체 config.xml 복원은 다른 운영 변경도 되돌릴 수 있으므로 GUI 복원 절차로 별도 수행한다. IPv6 인바운드는 이번 포트 전달 구현에 포함하지 않으므로 이 경로에서는 DNS A(IPv4)만 적용한다.
 
 근거: [Netgate 포트 전달](https://docs.netgate.com/pfsense/en/latest/nat/port-forwards.html), [pfsensible.core](https://github.com/pfsensible/core).
+
+## EKS → 온프레 IPsec 인바운드
+
+`pfsense-edge`는 HTTPS NAT와 IPsec 규칙을 별도로 실행할 수 있다. 기존 실행은 HTTPS만 관리하며, IPsec은 `pfsense_edge_ipsec_enabled: true`로 명시적으로 켠다. IPsec만 적용할 때는 `pfsense_edge_https_enabled: false`를 사용하므로 WAN/VIP·HTTPS 워커 입력이 필요 없다.
+
+| 출발지 | 목적지 | TCP 목적지 포트 |
+|---|---|---|
+| `172.28.0.0/16` | 모니터링 VIP `172.30.0.35` | `9009` Mimir, `3100` Loki, `4317`·`4318` Tempo |
+| `172.28.0.0/16` | Kafka `172.30.0.40`·`.41`·`.42` | `9092` |
+
+IPsec 탭(`enc0`)에 이름 있는 허용 규칙 두 개와 별칭 두 개를 관리한다. 모니터링 포트는 연속 범위로 열지 않고 네 포트만 지정한다. 별칭과 규칙을 한 번에 계획하므로 최초 `--check`에서도 별칭 참조를 검증할 수 있다. 기존 규칙·NAT·별칭을 일괄 삭제하지 않는다. 요청한 경로를 명시적으로 식별하도록 IPsec 탭 맨 위에 두며, 기존 광역 허용 규칙은 축소하거나 제거하지 않는다.
+
+```sh
+cd ansible
+ansible-galaxy collection install -r requirements-pfsense.yml
+# 예제 파일을 개인 파일로 복사하고 대상·백업을 확인한 후 confirmed=true로 설정한다.
+cp pfsense-ipsec.example.yml pfsense-ipsec.local.yml
+ansible-playbook -i inventory/pfsense/hosts.local.yml playbooks/network/configure-pfsense-edge.yml -e @pfsense-ipsec.local.yml --limit edge_primary --check
+ansible-playbook -i inventory/pfsense/hosts.local.yml playbooks/network/configure-pfsense-edge.yml -e @pfsense-ipsec.local.yml --limit edge_primary
+```
+
+inventory 호스트 이름은 실제 파일에 맞춘다. IPsec 필터 모드는 `enc`여야 하고 대상 장비에 IPsec VPN 구성이 있어야 한다. CARP/pfsync는 이 규칙을 대기에 복제하지 않는다. VPN 구성이 있는 대기 장비에 적용하려면 대상을 별도로 지정하고 검증한다. VPN이 없는 대기에 규칙을 넣기 위해 터널·PSK·인터페이스를 자동 생성하지 않는다.
+
+롤백은 같은 명령에 `-e pfsense_edge_ipsec_state=absent`를 추가해 이름 있는 두 규칙만 제거한다. 별칭은 보존한다. 기존 광역 허용 규칙이 남아 있다면 두 규칙을 지워도 해당 통신이 차단되지는 않는다.
+
+적용 후 `pfctl -sr`에서 네 모니터링 포트와 Kafka `9092`를 확인하고, `pfctl -t devoops_eks_kafka_hosts -T show`로 세 브로커 주소를 확인한다. 재실행 `--check`에서 변경0을 확인한다. 실제 EKS에서 VIP TCP 접속 및 지표·로그·트레이스 수신 여부는 VPN·반환 경로·서비스 리스너와 함께 검증한다.
+
+### 2026-11-18 실제 확인
+
+- 주 `.2`에는 기존 `172.28.0.0/16 → any TCP/모든 포트` 규칙이 있어 모니터링도 이미 방화벽상 허용돼 있었다. Kafka만 열렸다는 과거 설명과 다르다. 광역 허용 축소는 별도 검토한다.
+- 주 `.2`에 이 role의 모니터링·Kafka 명시 규칙을 실제 적용하고 실규칙과 변경0을 확인했다. CARP MASTER 및 pfsync syncok=1 유지.
+- 대기 `.3`은 IPsec VPN 구성이 없어 체크 모드에서 거부됐다. 실제 설정 변경 없음. pfsync 활성화는 IPsec VPN·방화벽 설정 복제를 의미하지 않는다.
+- AWS EKS/VPN은 비용 절감으로 내려둔 상태여서 EKS 출발 수집 성공은 미검증이다.

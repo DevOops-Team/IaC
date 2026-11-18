@@ -1,31 +1,11 @@
-- name: Require explicit topology confirmation
+- name: Validate requested pfSense operations
   ansible.builtin.assert:
     that:
     - pfsense_edge_confirmed | bool
-    - ansible_play_hosts_all | length == 1
-    - pfsense_edge_interface | length > 0
-    - pfsense_edge_wan_ip | length > 0
-    - pfsense_edge_worker_ip | length > 0
-    - pfsense_edge_node_port | int == 30443
-    - pfsense_edge_state in ['present', 'absent']
-    fail_msg: Confirm WAN/VIP, worker, return routing, GUI access and conflicting TCP443 rules first. Target only the primary firewall.
-
-- name: Validate concrete IPv4 endpoints on the Ansible controller
-  ansible.builtin.command:
-    argv:
-    - '{{ ansible_playbook_python }}'
-    - -c
-    - |
-      import ipaddress, sys
-      for value in sys.argv[1:]:
-          ip = ipaddress.IPv4Address(value)
-          if ip.is_unspecified or ip.is_multicast or ip.is_loopback or ip.is_reserved or str(ip) == '255.255.255.255':
-              raise SystemExit('Use concrete unicast IPv4 addresses for WAN/VIP and worker')
-    - '{{ pfsense_edge_wan_ip }}'
-    - '{{ pfsense_edge_worker_ip }}'
-  delegate_to: localhost
-  changed_when: false
-  check_mode: false
+    - (pfsense_edge_https_enabled | bool) or (pfsense_edge_ipsec_enabled | bool)
+    - not (pfsense_edge_https_enabled | bool) or ansible_play_hosts_all | length == 1
+    - pfsense_edge_ipsec_state in ['present', 'absent']
+    fail_msg: Confirm the target firewall and configuration backup. HTTPS NAT must target only the primary firewall.
 
 - name: Require root access for pfSense configuration modules
   ansible.builtin.raw: id -u
@@ -47,15 +27,10 @@
   when: not ansible_check_mode
   no_log: true
 
-- name: Forward TCP443 and maintain its associated filter rule
-  pfsensible.core.pfsense_nat_port_forward:
-    descr: '{{ pfsense_edge_rule_name }}'
-    interface: '{{ pfsense_edge_interface }}'
-    ipprotocol: inet
-    protocol: tcp
-    source: '{{ pfsense_edge_source }}'
-    destination: '{{ pfsense_edge_wan_ip }}:443'
-    target: '{{ pfsense_edge_worker_ip }}:{{ pfsense_edge_node_port }}'
-    associated_rule: associated
-    natreflection: disable
-    state: '{{ pfsense_edge_state }}'
+- name: Configure public HTTPS forwarding
+  ansible.builtin.include_tasks: https.yml
+  when: pfsense_edge_https_enabled | bool
+
+- name: Configure EKS IPsec inbound services
+  ansible.builtin.include_tasks: ipsec.yml
+  when: pfsense_edge_ipsec_enabled | bool
