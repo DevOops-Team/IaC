@@ -52,7 +52,7 @@ terraform/run.sh apply eks --proxy        # base가 먼저 있어야 한다 (eks
 
 ## 이 레포 밖에서 함께 필요한 것
 
-- EKS → 온프레 Kafka(172.30.0.40-42:9092): pfSense **IPsec** 탭 인바운드 규칙(TCP, src `172.28.0.0/16`). 11/12 수동 적용했고 `ansible/roles/pfsense-edge`에는 아직 없다.
+- EKS → 온프레 Kafka(172.30.0.40-42:9092) 및 모니터링 VIP(172.30.0.35:9009/3100/4317/4318): pfSense **IPsec** 탭 인바운드 규칙(TCP, src `172.28.0.0/16`). `ansible/roles/pfsense-edge`의 IPsec 전용 모드로 관리한다. 입력·적용·검증은 [EDGE.md](../../ansible/EDGE.md#eks--온프레-ipsec-인바운드)를 따른다.
 - relocator kubeconfig(`kueue-system/<eks>-relocator-kubeconfig`)는 이 모듈 범위 밖이다(GPU-99 결정 대기).
 
 ## 검증

@@ -1,0 +1,54 @@
+- name: Validate the reviewed EKS service contract
+  ansible.builtin.assert:
+    that:
+    - pfsense_edge_eks_cidr == '172.28.0.0/16'
+    - pfsense_edge_monitoring_vip == '172.30.0.35'
+    - pfsense_edge_monitoring_ports == '9009 3100 4317 4318'
+    - pfsense_edge_kafka_hosts == '172.30.0.40 172.30.0.41 172.30.0.42'
+    fail_msg: Review changes to the EKS inbound service contract before changing its scope.
+
+- name: Verify IPsec traffic is filtered on the IPsec tab
+  ansible.builtin.raw: >-
+    /usr/local/bin/php -r 'require_once("config.inc");
+    if (config_get_path("ipsec/filtermode", "enc") !== "enc") { exit(1); }'
+  changed_when: false
+  check_mode: false
+
+- name: Manage EKS IPsec aliases and service rules together
+  pfsensible.core.pfsense_aggregate:
+    # Alias updates are visible to rule validation even in check mode.
+    # Never purge unrelated rules, aliases, NAT or interface configuration.
+    purge_aliases: false
+    purge_rules: false
+    aggregated_aliases:
+    - name: devoops_eks_monitoring_ports
+      type: port
+      address: '{{ pfsense_edge_monitoring_ports }}'
+      descr: DevOops EKS monitoring ingestion TCP ports
+      state: present
+    - name: devoops_eks_kafka_hosts
+      type: host
+      address: '{{ pfsense_edge_kafka_hosts }}'
+      descr: DevOops on-prem Kafka brokers for EKS
+      state: present
+    aggregated_rules:
+    - name: DevOops EKS monitoring inbound
+      interface: ipsec
+      action: pass
+      ipprotocol: inet
+      protocol: tcp
+      source: '{{ pfsense_edge_eks_cidr }}'
+      destination: '{{ pfsense_edge_monitoring_vip }}'
+      destination_port: devoops_eks_monitoring_ports
+      after: top
+      state: '{{ pfsense_edge_ipsec_state }}'
+    - name: DevOops EKS Kafka inbound
+      interface: ipsec
+      action: pass
+      ipprotocol: inet
+      protocol: tcp
+      source: '{{ pfsense_edge_eks_cidr }}'
+      destination: devoops_eks_kafka_hosts
+      destination_port: '9092'
+      after: DevOops EKS monitoring inbound
+      state: '{{ pfsense_edge_ipsec_state }}'
