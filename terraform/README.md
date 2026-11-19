@@ -67,7 +67,13 @@ terraform/run.sh validate                      # 자격 증명 없이 문법 (CI
 | 버킷 하나 더 | `storage`에 항목 + `live/base/storage.tf`에 `module "<이름>" { source = "../../modules/s3" ... }` | `apply base` |
 | 온프레 워크로드 하나 더 | `onprem_workloads`에 이름 + `live/base/onprem-roles.tf`에 정책, 인증서 `bootstrap/certs.sh <이름>` | `apply base` |
 
-## 영속 자원
+## 비용 알림 (GPU-158)
+
+매일 한국 시간 오전 9시 Slack 비용 요약은 별도 `live/cost` root로 관리한다.
+기존 `run.sh`의 기본 실행·EKS 종료 대상에는 포함하지 않는다.
+[구성·비밀 입력·배포·검증](docs/DAILY-COST-SLACK.md)을 따른다.
+
+## 영속 자원 보호
 
 S3 버킷 · DynamoDB 테이블 · Roles Anywhere trust anchor에는 `prevent_destroy`가 있어 `destroy base`는 실패한다.
 비용이 드는 것(EKS, NAT · VPN)은 `destroy eks`와 `network.enabled: false`로 끈다.
