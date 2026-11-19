@@ -2,7 +2,7 @@ locals {
   state_bucket_name = "${local.name_prefix}-tfstate-${local.account_id}-${local.region}"
   # 삭제를 막을 state 키 (run.sh state_key와 같아야 함). 이 root 자신은 처음 이름 bootstrap.
   # data · identity는 live/base로 합치기 전 키(11/16), 기록 보호용으로 남긴다.
-  root_names = ["bootstrap", "base", "eks", "data", "identity"]
+  root_names = ["bootstrap", "base", "eks", "cost", "data", "identity"]
 }
 
 resource "aws_s3_bucket" "state" {
