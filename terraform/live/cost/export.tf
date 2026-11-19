@@ -56,12 +56,30 @@ resource "aws_s3_bucket_policy" "cost" {
       {
         Sid       = "DataExportDelivery"
         Effect    = "Allow"
-        Principal = { Service = "bcm-data-exports.amazonaws.com" }
+        Principal = { Service = ["bcm-data-exports.amazonaws.com", "billingreports.amazonaws.com"] }
         Action    = "s3:PutObject"
-        Resource  = "${aws_s3_bucket.cost.arn}/cur/*"
+        Resource  = "${aws_s3_bucket.cost.arn}/*"
         Condition = {
           StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
-          ArnLike      = { "aws:SourceArn" = "arn:${data.aws_partition.current.partition}:bcm-data-exports:us-east-1:${data.aws_caller_identity.current.account_id}:export/*" }
+          ArnLike = { "aws:SourceArn" = [
+            "arn:${data.aws_partition.current.partition}:bcm-data-exports:us-east-1:${data.aws_caller_identity.current.account_id}:export/*",
+            "arn:${data.aws_partition.current.partition}:cur:us-east-1:${data.aws_caller_identity.current.account_id}:definition/*"
+          ] }
+        }
+      },
+      {
+        # AWS Billing 공식 전달 정책: export 생성 때 버킷 소유권·정책 검증에도 필요하다.
+        Sid       = "BillingDeliveryValidation"
+        Effect    = "Allow"
+        Principal = { Service = ["bcm-data-exports.amazonaws.com", "billingreports.amazonaws.com"] }
+        Action    = ["s3:GetBucketAcl", "s3:GetBucketPolicy"]
+        Resource  = aws_s3_bucket.cost.arn
+        Condition = {
+          StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
+          ArnLike = { "aws:SourceArn" = [
+            "arn:${data.aws_partition.current.partition}:bcm-data-exports:us-east-1:${data.aws_caller_identity.current.account_id}:export/*",
+            "arn:${data.aws_partition.current.partition}:cur:us-east-1:${data.aws_caller_identity.current.account_id}:definition/*"
+          ] }
         }
       },
       {
@@ -91,6 +109,7 @@ resource "aws_bcmdataexports_export" "hourly" {
       SQL
       table_configurations = {
         COST_AND_USAGE_REPORT = {
+          BILLING_VIEW_ARN                      = "arn:${data.aws_partition.current.partition}:billing::${data.aws_caller_identity.current.account_id}:billingview/primary"
           TIME_GRANULARITY                      = "HOURLY"
           INCLUDE_RESOURCES                     = "FALSE"
           INCLUDE_SPLIT_COST_ALLOCATION_DATA    = "FALSE"

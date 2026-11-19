@@ -109,5 +109,6 @@ Lambda 120초 시간 제한 초과·권한 오류·파서 오류는 미집계 $0
 - https://docs.aws.amazon.com/cur/latest/userguide/table-dictionary-cur2.html
 - https://docs.aws.amazon.com/cur/latest/userguide/dataexports-export-delivery.html
 - https://docs.aws.amazon.com/cur/latest/userguide/dataexports-s3-bucket.html
+- https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/billing-example-policies.html
 - https://docs.aws.amazon.com/scheduler/latest/UserGuide/cross-service-confused-deputy-prevention.html
 - https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/
