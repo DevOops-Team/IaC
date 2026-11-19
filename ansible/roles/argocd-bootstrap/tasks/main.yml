@@ -13,14 +13,44 @@
   ansible.builtin.copy:
     dest: '{{ argocd_cache }}/kustomization.yaml'
     mode: '0600'
-    content: "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n- upstream.yaml\npatches:\n\
-      - target:\n    kind: Deployment|StatefulSet\n  patch: '[{\"op\": \"add\", \"path\": \"/spec/template/spec/nodeSelector\"\
-      , \"value\": {\"platform-worker\":\n    \"true\"}}]'\n"
+    content: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - upstream.yaml
+      patches:
+      - target:
+          kind: Deployment|StatefulSet
+        patch: '[{"op": "add", "path": "/spec/template/spec/nodeSelector", "value": {"platform-worker": "true"}}]'
+      - patch: |-
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: argocd-cm
+          data:
+            timeout.reconciliation: "{{ argocd_reconciliation_timeout }}"
+            timeout.reconciliation.jitter: "{{ argocd_reconciliation_jitter }}"
 - name: Ensure Argo CD namespace exists for first installation
   ansible.builtin.include_tasks: namespace.yml
   vars:
     seed_context: '{{ manager_context }}'
     seed_namespace: argocd
+- name: Read the current reconciliation settings
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - -n
+    - argocd
+    - get
+    - configmap
+    - argocd-cm
+    - --ignore-not-found
+    - -o
+    - jsonpath={.data.timeout\.reconciliation}/{.data.timeout\.reconciliation\.jitter}
+  register: argo_reconciliation_before
+  changed_when: false
 - name: Install Argo CD once using server-side apply
   ansible.builtin.command:
     argv:
@@ -35,6 +65,23 @@
     - '{{ argocd_cache }}'
   register: argo_install
   changed_when: '''created'' in argo_install.stdout or ''configured'' in argo_install.stdout'
+- name: Restart repo-server and application-controller when the reconciliation settings changed
+  # 두 컴포넌트는 시작할 때만 timeout.reconciliation을 읽는다. 처음 설치(argocd-cm 없음)는 이미 새 값으로 뜬다
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - -n
+    - argocd
+    - rollout
+    - restart
+    - deployment/argocd-repo-server
+    - statefulset/argocd-application-controller
+  when:
+  - argo_reconciliation_before.stdout != ''
+  - argo_reconciliation_before.stdout != argocd_reconciliation_timeout ~ '/' ~ argocd_reconciliation_jitter
+  changed_when: true
 - name: Wait for Argo API server
   ansible.builtin.command:
     argv:
