@@ -1,1 +1,5 @@
 argocd_cache: '{{ role_path }}/../../.cache/argocd'
+# 저장소 확인 주기 (GPU-230). 기본값 120s + jitter 최대 60s(2~3분)를 1분 정각으로.
+# 바뀌면 repo-server · application-controller를 재시작해야 적용된다 (argocd-cm.yaml 문서).
+argocd_reconciliation_timeout: 60s
+argocd_reconciliation_jitter: 0s
