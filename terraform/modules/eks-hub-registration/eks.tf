@@ -2,6 +2,7 @@
 #   - kueue-system/multikueue-sa : MultiKueue · dispatcher가 쓰는 토큰 (권한은 아래 ClusterRole + Gitops devoops-dispatcher-read)
 #   - kube-system/argocd-manager : 온프레 Argo CD가 Kueue · JobSet 차트(CRD · 웹훅)를 설치하므로 cluster-admin
 #   - training/ghcr-pull         : 비공개 trainer · checkpoint 이미지 pull (온프레 platform/ghcr-pull과 같은 값)
+#   - monitoring/ghcr-pull       : 비공개 dcgm-hostengine 사이드카 pull (같은 값, GPU-92)
 #   - kueue-system/relocator     : relocator 전용 (노드 cordon · taint), relocator.tf
 # 토큰은 만료 없는 service-account-token Secret이다 (ADR-9, exec 인증 쓰지 않음).
 
@@ -10,12 +11,14 @@ resource "terraform_data" "api_ready" {
   input = var.admin_access_ready
 }
 
-# Argo CD(eks/scheduling/base/namespaces.yaml)도 같은 네임스페이스를 관리한다. Argo가 붙이는
+# Argo CD(Gitops eks/scheduling/base/namespaces.yaml, monitoring은 Monitoring 레포
+# deploy/agents/overlays/eks/namespace.yaml)도 같은 네임스페이스를 관리한다. Argo 쪽은 Prune=false로 둔다.
+# pull secret을 Argo 동기화 전에 넣어야 하므로 네임스페이스도 여기서 먼저 만든다. Argo가 붙이는
 # 라벨 · 어노테이션은 건드리지 않는다. 등록은 클러스터와 함께 만들고 지우는 것만 지원한다
 # (클러스터를 남긴 채 이 모듈만 지우면 Kueue가 든 네임스페이스도 지워진다).
 resource "kubernetes_namespace_v1" "this" {
   provider = kubernetes.eks
-  for_each = toset(["kueue-system", "training"])
+  for_each = toset(["kueue-system", "training", "monitoring"])
 
   metadata {
     name = each.key
@@ -170,15 +173,22 @@ resource "kubernetes_secret_v1" "argocd_manager_token" {
   wait_for_service_account_token = true
 }
 
-# --- 학습 이미지 pull -------------------------------------------------------------
+# --- 비공개 이미지 pull (학습 · 모니터링) ------------------------------------------------
 
 resource "kubernetes_secret_v1" "ghcr_pull" {
   provider = kubernetes.eks
+  for_each = toset(["training", "monitoring"])
 
   metadata {
     name      = "ghcr-pull"
-    namespace = kubernetes_namespace_v1.this["training"].metadata[0].name
+    namespace = kubernetes_namespace_v1.this[each.key].metadata[0].name
   }
   type = data.kubernetes_secret_v1.onprem_ghcr_pull.type
   data = data.kubernetes_secret_v1.onprem_ghcr_pull.data
+}
+
+# 단일 리소스였던 training/ghcr-pull을 지우지 않고 키 주소로 옮긴다.
+moved {
+  from = kubernetes_secret_v1.ghcr_pull
+  to   = kubernetes_secret_v1.ghcr_pull["training"]
 }
