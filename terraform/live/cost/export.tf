@@ -109,6 +109,7 @@ resource "aws_bcmdataexports_export" "hourly" {
       SQL
       table_configurations = {
         COST_AND_USAGE_REPORT = {
+          BILLING_VIEW_ARN                      = "arn:${data.aws_partition.current.partition}:billing::${data.aws_caller_identity.current.account_id}:billingview/primary"
           TIME_GRANULARITY                      = "HOURLY"
           INCLUDE_RESOURCES                     = "FALSE"
           INCLUDE_SPLIT_COST_ALLOCATION_DATA    = "FALSE"
