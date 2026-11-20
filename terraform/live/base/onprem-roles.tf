@@ -57,9 +57,10 @@ locals {
       name = "recovery-data-access"
       statements = [
         {
+          # Scan: 하트비트 경과 지표가 펜싱 테이블 전체를 읽는다 (ADR-44, GPU-242)
           Sid      = "ManageRecoveryState"
           Effect   = "Allow"
-          Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
+          Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Scan"]
           Resource = local.fencing_arn
         },
         {
