@@ -45,9 +45,10 @@ locals {
           Condition = { StringLike = { "s3:prefix" = ["code/*"] } }
         },
         {
+          # 첫 항목 생성(PutItem) + 사용자 다시 시작의 세대 +1 조건부 갱신(UpdateItem, GPU-240)
           Sid      = "CreateAndReadInitialFencing"
           Effect   = "Allow"
-          Action   = ["dynamodb:PutItem", "dynamodb:GetItem"]
+          Action   = ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem"]
           Resource = local.fencing_arn
         },
       ]
