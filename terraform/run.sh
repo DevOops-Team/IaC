@@ -7,6 +7,9 @@
 #   base        terraform/live/base   S3 · DynamoDB · Roles Anywhere · VPC(network)      ← CA 공개 인증서, 온프레 공인 IP
 #   eks         terraform/live/eks    EKS 클러스터 · GPU 노드그룹 · 온프레 허브 등록        ← base, 온프레 kubeconfig, SOCKS 프록시
 #
+# EKS ON 마지막 단계: apply eks 뒤 OFF 때 붙인 펜싱 라벨(devoops/fenced)이 남아 있으면 안내가 나온다.
+#   K8s 레포 scheduling/ops/eks_gate.py on-check <eks-x> --unfence 로 확인 뒤 지운다 (지우기 전엔 잡이 안 감)
+#
 # 사람이 고치는 값은 terraform/config/<env>.yaml 한 곳이다. 계정 · 프로파일은 코드에 없다:
 # 계정 ID는 실행할 때 aws sts로 읽고, state 버킷 <project>-<env>-tfstate-<account>-<region>과
 # backend 설정을 여기서 만든다.
@@ -50,7 +53,7 @@ export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cac
 mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
 die() { echo "error: $*" >&2; exit 1; }
-usage() { sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 in_list() { local x="$1"; shift; for y in "$@"; do [ "$x" = "$y" ] && return 0; done; return 1; }
 stack_dir() { case "$1" in state) echo state ;; *) echo "live/$1" ;; esac; }
 # state 키 이름. state root는 처음 이름(bootstrap)을 유지한다 (state/main.tf root_names와 같아야 함).
@@ -203,6 +206,32 @@ bootstrap_state_bucket() {
   echo "-- state: 버킷 생성 · state 이전 완료"
 }
 
+# eks apply 뒤: OFF 때 붙인 펜싱 라벨(devoops/fenced=true)이 남은 MultiKueueCluster를 알린다 (GPU-238).
+# 라벨이 남아 있으면 디스패처가 그 클러스터로 잡을 보내지 않는다. 준비 확인 게이트를 건너뛰지 않도록
+# 여기서 지우지 않고 eks_gate on-check --unfence를 안내한다. 조회 실패는 경고만 하고 apply 결과는 그대로 둔다.
+eks_fence_notice() {
+  local aliases fenced=() a label
+  command -v kubectl >/dev/null || { echo "   (펜싱 확인 건너뜀: kubectl 없음)"; return 0; }
+  aliases="$(tf eks output -json cluster_names 2>/dev/null | grep -oE '"[a-z0-9-]+" *:' | tr -d '": ')" || true
+  [ -n "$aliases" ] || return 0
+  for a in $aliases; do
+    if ! label="$(kubectl --kubeconfig "$ONPREM_KUBECONFIG" --request-timeout=15s get multikueuecluster "eks-$a" \
+                  -o jsonpath='{.metadata.labels.devoops/fenced}' 2>/dev/null)"; then
+      echo "   경고: 온프레 MultiKueueCluster eks-${a}를 조회하지 못해 펜싱 여부를 확인 못 함"
+      continue
+    fi
+    [ "$label" = true ] && fenced+=("eks-$a")
+  done
+  [ ${#fenced[@]} -gt 0 ] || return 0
+  echo
+  echo "== 다음 단계: 펜싱 해제 (${fenced[*]})"
+  echo "   ${fenced[*]}에 devoops/fenced=true가 남아 있어 디스패처가 새 잡을 보내지 않습니다."
+  echo "   준비 상태를 확인하고 라벨을 지우려면 (K8s 레포, scheduling/ops/README.md):"
+  for a in "${fenced[@]}"; do
+    echo "     python scheduling/ops/eks_gate.py --manager-context <관리-context> on-check ${a} --worker-context <${a}-context> --unfence"
+  done
+}
+
 for s in "${selected[@]}"; do
   echo
   echo "======== ${s} (${CMD})"
@@ -222,6 +251,7 @@ for s in "${selected[@]}"; do
     *) tf "$s" "$CMD" -input=false "${ARGS[@]+"${ARGS[@]}"}" "${approve[@]+"${approve[@]}"}" "${EXTRA[@]+"${EXTRA[@]}"}" ;;
   esac
   [ "$s" = eks ] && unset HTTPS_PROXY
+  if [ "$s" = eks ] && [ "$CMD" = apply ]; then eks_fence_notice; fi
 done
 echo
 echo "== 완료: ${CMD} ${selected[*]}"
