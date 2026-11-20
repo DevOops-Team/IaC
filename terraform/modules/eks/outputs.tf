@@ -50,6 +50,7 @@ output "managed_gpu_node_groups" {
       labels         = group.labels
       taints         = group.taint
       az             = var.cpu_node_az
+      user_data      = base64decode(aws_launch_template.gpu[role].user_data)
     }
   }
 }

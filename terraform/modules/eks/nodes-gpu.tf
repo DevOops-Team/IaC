@@ -6,6 +6,25 @@ locals {
       spare    = var.gpu_spare_node_count
     } : role => count if count > 0
   }
+
+  # 관리형 노드그룹 launch template의 user data는 MIME multipart여야 한다 (AL2023 nodeadm).
+  gpu_user_data = <<-EOT
+    MIME-Version: 1.0
+    Content-Type: multipart/mixed; boundary="BOUNDARY"
+
+    --BOUNDARY
+    Content-Type: application/node.eks.aws
+
+    ---
+    apiVersion: node.eks.aws/v1alpha1
+    kind: NodeConfig
+    spec:
+      instance:
+        localStorage:
+          strategy: RAID0
+
+    --BOUNDARY--
+  EOT
 }
 
 resource "aws_launch_template" "gpu" {
@@ -22,6 +41,11 @@ resource "aws_launch_template" "gpu" {
       delete_on_termination = true
     }
   }
+
+  # 로컬 NVMe(인스턴스 스토어)를 RAID0으로 묶어 /mnt/k8s-disks에 올리고 containerd · 파드 로그 등을 그쪽에 둔다 (GPU-235).
+  # 루트 EBS는 OS만 담는다. image_id가 없으므로 EKS가 만든 NodeConfig(클러스터 접속 정보)와 병합된다.
+  # gpu_instance_types에는 인스턴스 스토어가 있는 유형(g4dn 등)만 넣는다.
+  user_data = base64encode(local.gpu_user_data)
 
   metadata_options {
     http_endpoint               = "enabled"

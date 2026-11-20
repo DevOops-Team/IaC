@@ -146,6 +146,19 @@ run "two_cluster_test_without_autoscaling" {
   }
 
   assert {
+    condition = alltrue(flatten([
+      for cluster in values(output.eks_clusters) : [
+        for group in values(cluster.gpu_node_groups) :
+        strcontains(group.user_data, "Content-Type: multipart/mixed") &&
+        strcontains(group.user_data, "Content-Type: application/node.eks.aws") &&
+        strcontains(group.user_data, "kind: NodeConfig") &&
+        strcontains(group.user_data, "strategy: RAID0")
+      ]
+    ]))
+    error_message = "GPU 노드는 nodeadm localStorage RAID0으로 로컬 NVMe를 써야 한다 (GPU-235)."
+  }
+
+  assert {
     condition = alltrue([for cluster in values(output.eks_clusters) :
       cluster.cpu.capacity_type == "ON_DEMAND" &&
       toset(cluster.cpu.instance_types) == toset(["t3.large"]) &&
