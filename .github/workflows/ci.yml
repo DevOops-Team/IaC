@@ -3,7 +3,7 @@ name: ci
 on:
   pull_request:
   push:
-    branches: [develop, main]
+    branches: [main]   # develop 커밋은 PR에서 점검 — push까지 걸면 같은 커밋이 두 번 돈다 (GPU-214)
 
 permissions:
   contents: read
@@ -48,6 +48,7 @@ jobs:
           - terraform/state
           - terraform/live/base
           - terraform/live/eks
+          - terraform/live/cost
     steps:
       - uses: actions/checkout@v4
       - name: provider cache
@@ -111,7 +112,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: 테스트 의존성 설치
-        run: pip install pyyaml
+        run: pip install pyyaml boto3
+      - name: AWS 비용 집계 (외부 호출 없음)
+        run: python -m unittest discover -s scripts/cost/tests -v
       - name: Cloudflare DNS 계획 테스트
         run: python -m unittest discover -s tests -v
         working-directory: ansible/roles/cloudflare-provider
