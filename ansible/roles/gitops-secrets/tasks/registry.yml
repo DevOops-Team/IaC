@@ -1,3 +1,10 @@
+- name: Require registry credentials only when bootstrap still manages this Secret
+  ansible.builtin.assert:
+    that:
+      - lookup('env', 'GHCR_USERNAME') | length > 0
+      - lookup('env', 'GHCR_TOKEN') | length > 0
+  no_log: true
+  when: "(seed_namespace ~ '/ghcr-pull') not in seed_vso_protected_secrets"
 - name: Seed pull credential without storing plaintext manifest
   ansible.builtin.command:
     argv:
@@ -11,3 +18,4 @@
       ~ ":" ~ lookup("env","GHCR_TOKEN")) | b64encode}}} | to_json}} | to_json }}'
   no_log: true
   diff: false
+  when: "(seed_namespace ~ '/ghcr-pull') not in seed_vso_protected_secrets"

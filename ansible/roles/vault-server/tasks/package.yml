@@ -1,0 +1,44 @@
+---
+- name: Install package and TLS prerequisites
+  ansible.builtin.apt:
+    name: [ca-certificates, curl, gnupg, openssl]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+- name: Fetch HashiCorp signing key
+  ansible.builtin.get_url:
+    url: '{{ vault_apt_key_url }}'
+    dest: /usr/share/keyrings/hashicorp-vault.asc
+    owner: root
+    group: root
+    mode: '0644'
+- name: Inspect signing key fingerprint
+  ansible.builtin.command:
+    argv: [gpg, --batch, --show-keys, --with-colons, /usr/share/keyrings/hashicorp-vault.asc]
+  register: vault_signing_key
+  changed_when: false
+  when: not ansible_check_mode
+- name: Require the expected primary signing key
+  ansible.builtin.assert:
+    that:
+      - (vault_signing_key.stdout_lines | select('match', '^fpr:') | first).split(':')[9] == vault_apt_key_fingerprint
+  when: not ansible_check_mode
+- name: Register the verified HashiCorp package repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/hashicorp.list
+    content: >-
+      deb [arch={{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_facts.architecture] }} signed-by=/usr/share/keyrings/hashicorp-vault.asc] https://apt.releases.hashicorp.com {{ ansible_facts.distribution_release }} main
+    owner: root
+    group: root
+    mode: '0644'
+- name: Install the pinned Vault package without starting it before configuration
+  ansible.builtin.apt:
+    name: 'vault={{ vault_deb_version }}'
+    state: present
+    update_cache: true
+    policy_rc_d: 101
+- name: Hold Vault for an explicit reviewed upgrade
+  ansible.builtin.dpkg_selections:
+    name: vault
+    selection: hold
+  when: not ansible_check_mode

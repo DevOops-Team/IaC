@@ -1,0 +1,6 @@
+---
+vso_bootstrap_confirmed: false
+vso_allow_upgrade: false
+vso_chart_version: '1.6.0'
+vso_release_name: vault-secrets-operator
+vso_namespace: vault-secrets-operator-system

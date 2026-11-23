@@ -1,0 +1,5 @@
+[Service]
+ExecStart=
+ExecStart=/usr/bin/vault server -config={{ vault_config_file }}
+LimitCORE=0
+UMask=0077

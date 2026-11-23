@@ -1,0 +1,60 @@
+---
+- name: Build a policy for this service's single KV path
+  ansible.builtin.set_fact:
+    vault_service_policy: |
+      path "devoops/data/{{ vault_target.kv_path }}" {
+        capabilities = ["read"]
+      }
+- name: Inspect existing policy
+  ansible.builtin.command:
+    argv: [vault, read, -format=json, 'sys/policies/acl/{{ vault_target.policy }}']
+  register: vault_policy_current
+  changed_when: false
+  check_mode: false
+  failed_when: >-
+    vault_policy_current.rc != 0 and
+    'No value found at' not in (vault_policy_current.stderr ~ vault_policy_current.stdout)
+- name: Write only changed policy text, never service secret values
+  ansible.builtin.command:
+    argv: [vault, policy, write, '{{ vault_target.policy }}', '-']
+    stdin: '{{ vault_service_policy }}'
+  when:
+    - not ansible_check_mode
+    - vault_policy_current.rc != 0 or ((vault_policy_current.stdout | from_json).data.policy | trim) != (vault_service_policy | trim)
+- name: Inspect existing authentication role
+  ansible.builtin.command:
+    argv: [vault, read, -format=json, 'auth/{{ vault_kubernetes_mount }}/role/{{ vault_target.name }}']
+  register: vault_role_current
+  changed_when: false
+  check_mode: false
+  failed_when: >-
+    vault_role_current.rc != 0 and
+    'No value found at' not in (vault_role_current.stderr ~ vault_role_current.stdout)
+- name: Normalize role comparison fields
+  ansible.builtin.set_fact:
+    vault_role_data: '{{ (vault_role_current.stdout | from_json).data if vault_role_current.rc == 0 else {} }}'
+- name: Require review before replacing another service identity
+  ansible.builtin.assert:
+    that:
+      - >-
+        vault_role_data | length == 0 or vault_auth_update_confirmed | bool or
+        (vault_role_data.get('bound_service_account_names') == [vault_target.name] and
+         vault_role_data.get('bound_service_account_namespaces') == [vault_target.namespace] and
+         vault_role_data.get('token_policies') == [vault_target.policy] and
+         vault_role_data.get('audience', '') == '')
+    fail_msg: 기존 Vault role의 SA/namespace/정책/audience가 다릅니다. 먼저 운영 설정과 대조하세요.
+- name: Configure role only when its identity or TTL differs
+  ansible.builtin.command:
+    argv: [vault, write, 'auth/{{ vault_kubernetes_mount }}/role/{{ vault_target.name }}', '-']
+    stdin: >-
+      {{ {"bound_service_account_names": [vault_target.name],
+          "bound_service_account_namespaces": [vault_target.namespace],
+          "token_policies": [vault_target.policy], "token_ttl": "10m", "token_max_ttl": "1h", "audience": ""} | to_json }}
+  when:
+    - not ansible_check_mode
+    - >-
+      vault_role_data.get('bound_service_account_names') != [vault_target.name] or
+      vault_role_data.get('bound_service_account_namespaces') != [vault_target.namespace] or
+      vault_role_data.get('token_policies') != [vault_target.policy] or
+      vault_role_data.get('token_ttl') != 600 or vault_role_data.get('token_max_ttl') != 3600 or
+      vault_role_data.get('audience', '') != ''

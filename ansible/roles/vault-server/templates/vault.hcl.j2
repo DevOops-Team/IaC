@@ -1,0 +1,18 @@
+# Managed by IaC Ansible. Stored secrets and Raft data are not managed here.
+ui = true
+disable_mlock = true
+
+api_addr     = "{{ vault_api_addr }}"
+cluster_addr = "{{ vault_cluster_addr }}"
+
+storage "raft" {
+  path    = "{{ vault_data_dir }}"
+  node_id = "{{ vault_node_id }}"
+}
+
+listener "tcp" {
+  address         = "{{ vault_bind_address }}:{{ vault_api_port }}"
+  cluster_address = "{{ vault_bind_address }}:{{ vault_cluster_port }}"
+  tls_cert_file   = "{{ vault_tls_cert }}"
+  tls_key_file    = "{{ vault_tls_key }}"
+}

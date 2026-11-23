@@ -1,0 +1,12 @@
+---
+# 로컬 Vault CLI 로그인 필요. 비밀값 이전/DB 계정 변경은 실행하지 않는다.
+- name: Configure common external Vault authentication and public trust
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  environment:
+    VAULT_ADDR: '{{ vault_external_addr | default("https://172.30.0.81:8200") }}'
+    VAULT_CACERT: '{{ vault_public_ca_file }}'
+  roles:
+    - manager-preflight
+    - vault-kubernetes-auth

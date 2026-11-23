@@ -1,11 +1,5 @@
-- name: Require registry and DNS-01 bootstrap credentials
-  ansible.builtin.assert:
-    that:
-    - lookup('env','GHCR_USERNAME') | length > 0
-    - lookup('env','GHCR_TOKEN') | length > 0
-    - lookup('env','CLOUDFLARE_DNS_API_TOKEN') | length > 0
-  no_log: true
-  diff: false
+- name: Protect Secrets already handed to VSO
+  ansible.builtin.import_tasks: vso-guard.yml
 - name: Prepare local bootstrap namespaces
   ansible.builtin.include_tasks: namespace.yml
   loop:
@@ -26,6 +20,12 @@
     loop_var: seed_namespace
   vars:
     seed_context: '{{ manager_context }}'
+- name: Require DNS-01 credential only for a Secret still managed by bootstrap
+  ansible.builtin.assert:
+    that:
+      - lookup('env', 'CLOUDFLARE_DNS_API_TOKEN') | length > 0
+  no_log: true
+  when: "'cert-manager/cloudflare-dns-api-token' not in seed_vso_protected_secrets"
 - name: Seed DNS-01 API token via stdin
   ansible.builtin.command:
     argv:
@@ -39,3 +39,4 @@
       | to_json }}'
   no_log: true
   diff: false
+  when: "'cert-manager/cloudflare-dns-api-token' not in seed_vso_protected_secrets"

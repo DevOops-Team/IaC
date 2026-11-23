@@ -1,0 +1,87 @@
+---
+- name: Require a reviewed explicit bootstrap request
+  ansible.builtin.assert:
+    that:
+      - vso_bootstrap_confirmed | bool
+      - vso_chart_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+- name: Inspect existing Helm release before adopting or changing it
+  ansible.builtin.command:
+    argv: [helm, list, --kube-context, '{{ manager_context }}', --namespace, '{{ vso_namespace }}', --all, --output, json]
+  register: vso_releases
+  changed_when: false
+  check_mode: false
+- name: Find the matching release
+  ansible.builtin.set_fact:
+    vso_existing_releases: '{{ (vso_releases.stdout | from_json) | selectattr("name", "equalto", vso_release_name) | list }}'
+- name: Inspect CRDs before attempting a new Helm installation
+  ansible.builtin.command:
+    argv: [kubectl, --context, '{{ manager_context }}', get, customresourcedefinitions, -o, json]
+  register: vso_existing_crds
+  changed_when: false
+  check_mode: false
+- name: Do not adopt an Operator installed outside the expected Helm release
+  ansible.builtin.assert:
+    that:
+      - >-
+        vso_existing_releases | length > 0 or
+        'vaultstaticsecrets.secrets.hashicorp.com' not in
+        ((vso_existing_crds.stdout | from_json)['items'] | map(attribute='metadata.name') | list)
+    fail_msg: VSO CRD가 있지만 지정 Helm release가 없습니다. 기존 Argo/수동 설치를 확인하고 중복 설치하지 마세요.
+- name: Do not silently upgrade a manually installed release
+  ansible.builtin.assert:
+    that:
+      - >-
+        vso_existing_releases | length == 0 or
+        vso_existing_releases[0].chart == 'vault-secrets-operator-' ~ vso_chart_version or
+        vso_allow_upgrade | bool
+    fail_msg: 기존 VSO 버전이 다릅니다. GitOps 관리 여부 확인 후 별도 업그레이드하세요.
+- name: Add official Helm repository
+  ansible.builtin.command:
+    argv: [helm, repo, add, hashicorp, 'https://helm.releases.hashicorp.com', --force-update]
+  changed_when: false
+  when: not ansible_check_mode and (vso_existing_releases | length == 0 or vso_allow_upgrade | bool)
+- name: Refresh the official repository
+  ansible.builtin.command:
+    argv: [helm, repo, update, hashicorp]
+  changed_when: false
+  when: not ansible_check_mode and (vso_existing_releases | length == 0 or vso_allow_upgrade | bool)
+- name: Install pinned VSO only on a new deployment or explicit upgrade
+  ansible.builtin.command:
+    argv:
+      - helm
+      - upgrade
+      - --install
+      - '{{ vso_release_name }}'
+      - hashicorp/vault-secrets-operator
+      - --version
+      - '{{ vso_chart_version }}'
+      - --kube-context
+      - '{{ manager_context }}'
+      - --namespace
+      - '{{ vso_namespace }}'
+      - --create-namespace
+      - --wait
+      - --timeout
+      - 5m
+  when: not ansible_check_mode and (vso_existing_releases | length == 0 or vso_allow_upgrade | bool)
+- name: Confirm the CRD exists
+  ansible.builtin.command:
+    argv: [kubectl, --context, '{{ manager_context }}', get, crd, vaultstaticsecrets.secrets.hashicorp.com]
+  changed_when: false
+  when: not ansible_check_mode
+- name: Require an Operator Deployment instead of accepting an empty selector
+  ansible.builtin.command:
+    argv: [kubectl, --context, '{{ manager_context }}', -n, '{{ vso_namespace }}', get, deployment, '-l', 'app.kubernetes.io/instance={{ vso_release_name }}', -o, name]
+  register: vso_deployment_names
+  changed_when: false
+  when: not ansible_check_mode
+- name: Require at least one matching Deployment
+  ansible.builtin.assert:
+    that:
+      - vso_deployment_names.stdout | length > 0
+  when: not ansible_check_mode
+- name: Verify the Operator deployment is ready
+  ansible.builtin.command:
+    argv: [kubectl, --context, '{{ manager_context }}', -n, '{{ vso_namespace }}', rollout, status, deployment, '-l', 'app.kubernetes.io/instance={{ vso_release_name }}', --timeout=120s]
+  changed_when: false
+  when: not ansible_check_mode

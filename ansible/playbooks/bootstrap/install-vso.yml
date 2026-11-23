@@ -1,0 +1,9 @@
+---
+# 기본 site.yml에는 포함하지 않는다. 관리 클러스터 전용 명시적 bootstrap.
+- name: Bootstrap Vault Secrets Operator without migrating service Secrets
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - manager-preflight
+    - vault-operator-bootstrap

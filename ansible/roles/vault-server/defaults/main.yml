@@ -1,0 +1,22 @@
+---
+vault_configure_confirmed: false
+# 실행 중 서버의 설정 변경/재시작은 명시적으로 허용한 경우만 수행한다.
+vault_restart_confirmed: false
+vault_version: '2.2.2'
+vault_deb_version: '{{ vault_version }}-1'
+vault_api_port: 8200
+vault_cluster_port: 8201
+vault_node_id: '{{ inventory_hostname }}'
+vault_bind_address: '{{ ansible_host }}'
+vault_api_addr: 'https://{{ ansible_host }}:{{ vault_api_port }}'
+vault_cluster_addr: 'https://{{ ansible_host }}:{{ vault_cluster_port }}'
+vault_data_dir: /opt/vault/data
+vault_config_file: /etc/vault.d/vault.hcl
+vault_tls_dir: /etc/vault.d/tls
+vault_tls_cert: '{{ vault_tls_dir }}/vault.crt'
+vault_tls_key: '{{ vault_tls_dir }}/vault.key'
+vault_tls_days: 365
+vault_tls_min_valid_seconds: 604800
+vault_apt_key_url: https://apt.releases.hashicorp.com/gpg
+# HashiCorp Package Signing fingerprint. 키 교체 시 공식 출처와 함께 갱신한다.
+vault_apt_key_fingerprint: 'D55C0D1AC78A8D8126CB631CFC9CA96ACA026560'

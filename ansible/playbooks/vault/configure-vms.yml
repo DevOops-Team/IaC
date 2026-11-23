@@ -1,0 +1,8 @@
+---
+- name: Configure dedicated Vault VMs without initializing or changing secrets
+  hosts: vault_servers
+  become: true
+  gather_facts: true
+  serial: 1
+  roles:
+    - vault-server
