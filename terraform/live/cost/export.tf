@@ -102,7 +102,7 @@ resource "aws_bcmdataexports_export" "hourly" {
       query_statement = <<-SQL
         SELECT bill_billing_period_start_date, line_item_usage_account_id,
           line_item_line_item_type, line_item_usage_start_date,
-          line_item_usage_end_date, line_item_product_code,
+          line_item_usage_end_date, line_item_product_code, line_item_usage_type,
           line_item_currency_code, line_item_unblended_cost, line_item_net_unblended_cost
         FROM COST_AND_USAGE_REPORT
         WHERE line_item_usage_account_id = '${data.aws_caller_identity.current.account_id}'
