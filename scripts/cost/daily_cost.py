@@ -44,6 +44,47 @@ def required_months(now):
     return sorted(months)
 
 
+def usage_category(row):
+    """제품 코드가 아닌 사용 유형으로 분류한다. 모르는 유형은 원문을 보존한다."""
+    product = row["line_item_product_code"]
+    usage = row.get("line_item_usage_type", "").strip()
+    if not usage:
+        return f"{product} (세부 사용 유형 수신 대기)"
+    # 지역 접두사가 붙어도 같은 과금 항목을 식별한다.
+    if product in {"AmazonEC2", "AmazonVPC"}:
+        rules = [("NatGateway-Hours", "NAT Gateway 시간 요금"),
+                 ("NatGateway-Bytes", "NAT Gateway 데이터 처리"),
+                 ("PublicIPv4:InUseAddress", "공인 IPv4 사용 중"),
+                 ("PublicIPv4:IdleAddress", "공인 IPv4 미사용"),
+                 ("VPN-Usage-Hours:", "Site-to-Site VPN 시간 요금"),
+                 ("EBS:Snapshot", "EBS 스냅샷"),
+                 ("EBS:Volume", "EBS 볼륨"),
+                 ("EBS:", "EBS 기타")]
+        for token, label in rules:
+            if token in usage:
+                return label
+        for token, label in [("BoxUsage:", "EC2 인스턴스"), ("SpotUsage:", "EC2 Spot 인스턴스")]:
+            if token in usage:
+                return f"{label} ({usage.split(token, 1)[1]})"
+    if "DataTransfer" in usage or "AWS-Out-Bytes" in usage or "AWS-In-Bytes" in usage:
+        return f"데이터 전송 ({product} / {usage})"
+    if product == "AmazonEKS" and "perCluster" in usage:
+        return "EKS 클러스터 시간 요금"
+    if product == "AmazonS3":
+        if "TimedStorage" in usage:
+            return "S3 저장 공간"
+        if "Requests-" in usage:
+            return f"S3 요청 ({usage})"
+    if product == "AmazonDynamoDB":
+        for token, label in [("ReadRequestUnits", "DynamoDB 읽기 요청"),
+                             ("WriteRequestUnits", "DynamoDB 쓰기 요청"),
+                             ("TimedPITRStorage", "DynamoDB PITR 백업 저장"),
+                             ("TimedStorage", "DynamoDB 저장 공간")]:
+            if token in usage:
+                return label
+    return f"{product} / {usage}"
+
+
 def aggregate(rows, account, now):
     days = {day.isoformat(): {"cost": ZERO, "rows": 0, "services": defaultdict(lambda: ZERO)}
             for day in report_days(now)}
@@ -82,7 +123,7 @@ def aggregate(rows, account, now):
                 raise ValueError("CUR interval crosses Korean day boundary")
             days[key]["cost"] += cost
             days[key]["rows"] += 1
-            days[key]["services"][row["line_item_product_code"]] += cost
+            days[key]["services"][usage_category(row)] += cost
     return {"days": days, "month": month, "monthly": totals, "unallocated": unallocated, "row_count": row_count}
 
 
@@ -176,8 +217,13 @@ def render(result, manifests, missing, now):
         value = money(item["cost"]) if item["rows"] else "아직 집계된 행 없음 (0달러 확정 아님)"
         lines.append(f"• {day} ({label}): {value}")
         if index == 0 and item["rows"]:
-            top = sorted(item["services"].items(), key=lambda pair: pair[1], reverse=True)[:5]
-            lines.append("  주요 서비스: " + " / ".join(f"{name} {money(cost)}" for name, cost in top))
+            details = sorted(item["services"].items(), key=lambda pair: (-pair[1], pair[0]))
+            lines.append("  전날 비용 상세 (0이 아닌 항목 전체):")
+            for name, cost in details:
+                if cost != ZERO:
+                    amount = money(cost) if abs(cost) >= Decimal("0.01") else (
+                        "-$0.01 미만" if cost < ZERO else "$0.01 미만")
+                    lines.append(f"    • {name}: {amount}")
     totals = result["monthly"]
     lines.append(f"*{result['month']} AWS 청구월 누적 (UTC 청구월 기준)*")
     if totals["rows"]:
