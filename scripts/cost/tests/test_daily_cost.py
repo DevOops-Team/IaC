@@ -27,6 +27,42 @@ def row(start="2026-11-18T15:00:00Z", end="2026-11-18T16:00:00Z", amount="1.25",
 
 
 class CostTests(unittest.TestCase):
+    def test_ec2_product_splits_compute_nat_ebs_and_transfer(self):
+        cases = [("USE2-BoxUsage:g4dn.xlarge", "EC2 인스턴스 (g4dn.xlarge)"),
+                 ("USE2-SpotUsage:g4dn.xlarge", "EC2 Spot 인스턴스 (g4dn.xlarge)"),
+                 ("USE2-NatGateway-Hours", "NAT Gateway 시간 요금"),
+                 ("USE2-NatGateway-Bytes", "NAT Gateway 데이터 처리"),
+                 ("USE2-EBS:VolumeUsage.gp3", "EBS 볼륨"),
+                 ("USE2-EBS:SnapshotUsage", "EBS 스냅샷"),
+                 ("USE2-DataTransfer-Regional-Bytes", "데이터 전송 (AmazonEC2 / USE2-DataTransfer-Regional-Bytes)")]
+        rows = [row("2026-11-18T00:00:00Z", "2026-11-18T01:00:00Z", "1",
+                    line_item_usage_type=usage) for usage, _ in cases]
+        result = cost.aggregate(rows, ACCOUNT, NOW)
+        details = result["days"]["2026-11-18"]["services"]
+        self.assertEqual(dict(details), {label: Decimal("1") for _, label in cases})
+        self.assertEqual(sum(details.values()), result["days"]["2026-11-18"]["cost"])
+        text = cost.render(result, [], [], NOW)
+        # 기존 상위 5개 제한으로 생략됐던 항목도 표시한다.
+        for _, label in cases:
+            self.assertIn(label, text)
+
+    def test_vpc_splits_vpn_and_ip_and_preserves_unknown_usage(self):
+        for usage, expected in [("USE2-VPN-Usage-Hours:ipsec.1", "Site-to-Site VPN 시간 요금"),
+                                ("USE2-PublicIPv4:InUseAddress", "공인 IPv4 사용 중"),
+                                ("USE2-PublicIPv4:IdleAddress", "공인 IPv4 미사용"),
+                                ("USE2-NewFee", "AmazonVPC / USE2-NewFee")]:
+            with self.subTest(usage=usage):
+                label = cost.usage_category(row(line_item_product_code="AmazonVPC", line_item_usage_type=usage))
+                self.assertEqual(label, expected)
+
+    def test_legacy_report_does_not_guess_instance_cost(self):
+        self.assertEqual(cost.usage_category(row()), "AmazonEC2 (세부 사용 유형 수신 대기)")
+
+    def test_small_nonzero_cost_is_not_displayed_as_zero(self):
+        result = cost.aggregate([row("2026-11-18T00:00:00Z", "2026-11-18T01:00:00Z", "0.0001",
+                                     line_item_usage_type="USE2-NatGateway-Bytes")], ACCOUNT, NOW)
+        self.assertIn("NAT Gateway 데이터 처리: $0.01 미만", cost.render(result, [], [], NOW))
+
     def test_korean_midnight_boundaries(self):
         rows = [row("2026-11-17T15:00:00Z", "2026-11-17T16:00:00Z", "2"),
                 row("2026-11-18T14:00:00Z", "2026-11-18T15:00:00Z", "3"), row()]
