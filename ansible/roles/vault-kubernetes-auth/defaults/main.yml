@@ -1,0 +1,17 @@
+---
+vault_auth_configure_confirmed: false
+vault_auth_update_confirmed: false
+vault_external_addr: https://172.30.0.81:8200
+vault_manager_api_addr: https://172.30.0.120:6443
+vault_kubernetes_mount: onprem
+# 공개 CA만 지정한다. Vault 개인키/토큰/비밀값은 입력 파일에 넣지 않는다.
+vault_public_ca_file: ''
+vault_common_targets:
+  - namespace: platform
+    name: backend-db-sync
+    policy: backend-db-read
+    kv_path: onprem/platform/backend-db
+  - namespace: data-system
+    name: collector-db-sync
+    policy: collector-db-read
+    kv_path: onprem/data-system/collector-db

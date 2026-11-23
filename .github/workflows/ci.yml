@@ -13,6 +13,24 @@ env:
   TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform-plugin-cache
 
 jobs:
+  vault-ansible:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install ansible-core==2.20.0
+      - name: Vault VM · VSO bootstrap · Secret 인계 문법 검사 (외부 접속 없음)
+        working-directory: ansible
+        run: |
+          ansible-playbook -i inventory/vault/hosts.yaml playbooks/vault/configure-vms.yml --syntax-check
+          ansible-playbook -i inventory/onprem/hosts.yaml playbooks/vault/configure-kubernetes-auth.yml --syntax-check
+          ansible-playbook -i inventory/onprem/hosts.yaml playbooks/bootstrap/install-vso.yml --syntax-check
+          ansible-playbook -i inventory/onprem/hosts.yaml playbooks/bootstrap/seed-secrets.yml --syntax-check
+      - name: 실제 role로 VSO Secret 덮어쓰기 방지 시험 (모의 kubectl)
+        run: python -m unittest discover -s ansible/tests -v
+
   pfsense-ansible:
     runs-on: ubuntu-24.04
     steps:

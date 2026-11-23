@@ -74,3 +74,6 @@ terraform/state/zz_local_backend_override.tf
 *.kubeconfig
 kubeconfig
 admin.conf
+
+# Vault Raft snapshots contain encrypted secret data; keep backups outside Git.
+*.snap

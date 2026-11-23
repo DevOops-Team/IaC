@@ -1,0 +1,116 @@
+---
+- name: Prepare private Raft and audit directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: vault
+    group: vault
+    mode: '0700'
+  loop:
+    - '{{ vault_data_dir }}'
+    - /var/log/vault
+- name: Prepare Vault configuration and private TLS directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: root
+    group: vault
+    mode: '0750'
+  loop:
+    - /etc/vault.d
+    - '{{ vault_tls_dir }}'
+- name: Inspect existing TLS material
+  ansible.builtin.stat:
+    path: '{{ item }}'
+  loop:
+    - '{{ vault_tls_cert }}'
+    - '{{ vault_tls_key }}'
+  register: vault_tls_stat
+- name: Refuse to replace incomplete TLS material
+  ansible.builtin.assert:
+    that:
+      - vault_tls_stat.results[0].stat.exists == vault_tls_stat.results[1].stat.exists
+    fail_msg: 인증서/키 중 하나만 있습니다. 자동 재발급하지 않습니다. 기존 TLS 자료를 확인하세요.
+- name: Generate a self-signed certificate only on a new VM
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -nodes
+      - -newkey
+      - rsa:3072
+      - -sha256
+      - -days
+      - '{{ vault_tls_days | string }}'
+      - -keyout
+      - '{{ vault_tls_key }}'
+      - -out
+      - '{{ vault_tls_cert }}'
+      - -subj
+      - '/CN={{ vault_node_id }}'
+      - -addext
+      - 'subjectAltName=DNS:{{ vault_node_id }},IP:{{ ansible_host }},IP:127.0.0.1'
+    creates: '{{ vault_tls_cert }}'
+  when: not vault_tls_stat.results[0].stat.exists
+  no_log: true
+- name: Restrict TLS private key access
+  ansible.builtin.file:
+    path: '{{ vault_tls_key }}'
+    owner: root
+    group: vault
+    mode: '0640'
+  when: not ansible_check_mode
+- name: Set public certificate permissions
+  ansible.builtin.file:
+    path: '{{ vault_tls_cert }}'
+    owner: root
+    group: vault
+    mode: '0644'
+  when: not ansible_check_mode
+- name: Verify API address is covered by the existing certificate
+  ansible.builtin.command:
+    argv: [openssl, x509, -in, '{{ vault_tls_cert }}', -noout, -checkip, '{{ ansible_host }}']
+  changed_when: false
+  when: not ansible_check_mode
+- name: Refuse an expired or nearly expired certificate instead of rotating it silently
+  ansible.builtin.command:
+    argv: [openssl, x509, -in, '{{ vault_tls_cert }}', -noout, -checkend, '{{ vault_tls_min_valid_seconds | string }}']
+  changed_when: false
+  when: not ansible_check_mode
+- name: Read private key's public component for pair verification
+  ansible.builtin.command:
+    argv: [openssl, pkey, -in, '{{ vault_tls_key }}', -pubout]
+  register: vault_key_public
+  changed_when: false
+  no_log: true
+  when: not ansible_check_mode
+- name: Read certificate's public component
+  ansible.builtin.command:
+    argv: [openssl, x509, -in, '{{ vault_tls_cert }}', -pubkey, -noout]
+  register: vault_cert_public
+  changed_when: false
+  no_log: true
+  when: not ansible_check_mode
+- name: Require a matching TLS certificate and key
+  ansible.builtin.assert:
+    that:
+      - vault_key_public.stdout == vault_cert_public.stdout
+    fail_msg: 인증서와 개인키가 다릅니다. 자동 교체하지 않습니다.
+  when: not ansible_check_mode
+- name: Read the public certificate as root
+  ansible.builtin.slurp:
+    src: '{{ vault_tls_cert }}'
+  register: vault_public_cert
+  when: not ansible_check_mode
+- name: Find SSH user's home without assuming /home
+  ansible.builtin.getent:
+    database: passwd
+    key: '{{ ansible_user }}'
+- name: Copy public certificate without exposing the private key
+  ansible.builtin.copy:
+    content: '{{ vault_public_cert.content | b64decode }}'
+    dest: '{{ ansible_facts.getent_passwd[ansible_user][4] }}/vault-ca.crt'
+    owner: '{{ ansible_user }}'
+    mode: '0644'
+  when: not ansible_check_mode

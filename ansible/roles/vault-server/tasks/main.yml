@@ -1,0 +1,5 @@
+---
+- ansible.builtin.import_tasks: preflight.yml
+- ansible.builtin.import_tasks: package.yml
+- ansible.builtin.import_tasks: tls.yml
+- ansible.builtin.import_tasks: service.yml

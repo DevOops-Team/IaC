@@ -1,0 +1,52 @@
+---
+- name: Install Raft configuration without touching Raft data or stored secrets
+  ansible.builtin.template:
+    src: vault.hcl.j2
+    dest: '{{ vault_config_file }}'
+    owner: root
+    group: vault
+    mode: '0640'
+    backup: true
+  notify: Restart configured Vault
+- name: Prepare service override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/vault.service.d
+    state: directory
+    mode: '0755'
+- name: Pin the service to the single managed configuration file
+  ansible.builtin.template:
+    src: service-override.conf.j2
+    dest: /etc/systemd/system/vault.service.d/10-devoops.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart configured Vault
+- name: Reload unit definitions and apply approved changes
+  ansible.builtin.meta: flush_handlers
+- name: Enable and start Vault
+  ansible.builtin.systemd_service:
+    name: vault
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: not ansible_check_mode
+- name: Report health without initializing, unsealing, or logging in
+  ansible.builtin.uri:
+    url: '{{ vault_api_addr }}/v1/sys/health'
+    ca_path: '{{ vault_tls_cert }}'
+    use_proxy: false
+    status_code: [200, 429, 472, 473, 501, 503]
+    return_content: true
+  register: vault_health
+  retries: 6
+  delay: 2
+  until: vault_health.status | default(-1) in [200, 429, 472, 473, 501, 503]
+  changed_when: false
+  when: not ansible_check_mode
+- name: Show only initialization and seal status
+  ansible.builtin.debug:
+    msg:
+      initialized: '{{ vault_health.json.initialized }}'
+      sealed: '{{ vault_health.json.sealed }}'
+      note: 초기화/unseal은 운영자가 직접 수행합니다. 재시작 뒤 Shamir unseal이 필요합니다.
+  when: not ansible_check_mode
