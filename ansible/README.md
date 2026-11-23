@@ -10,12 +10,17 @@ ADR-11에 따라 개인 PC에서 필요할 때 수동으로 VM 6대 공통 준�
 | MAP API 확인 | k8s/verify-manager-map.yml |
 | Argo CD HA 최초 설치/명시적 업그레이드 | bootstrap/install-argocd.yml |
 | 비밀값 등록·갱신 | bootstrap/seed-secrets.yml |
+| 외부 Vault VM 구성 (기본 vault1 한 대) | vault/configure-vms.yml → roles/vault-server |
+| VSO 최초 설치/명시적 업그레이드 | bootstrap/install-vso.yml |
 | GitOps project/root 최초 등록 | bootstrap/register-root.yml |
 | 모니터링 클러스터를 Argo CD 원격 클러스터로 등록 (GPU-177) | bootstrap/register-monitoring-cluster.yml |
 | 외부 Cloudflare 계정 리소스 | network/configure-cloudflare.yml |
 | 설치 후 부트스트랩 묶음 | site.yml |
 
 자세한 명령은 PROJECT.md, Cloudflare 인계는 EDGE.md를 확인합니다. bootstrap.example.yml을 bootstrap.local.yml로 복사해 실제 값으로 바꿉니다. 기존 project.local.yml/edge.local.yml이 있다면 자동 삭제하지 않았지만 새 실행 경로에서는 읽지 않습니다.
+
+Vault 도입·기존 Secret 보존·GitOps 인계·3대 확장은 [VAULT.md](VAULT.md)를 따릅니다.
+Vault/VSO 플레이북은 기본 site.yml에 포함하지 않습니다. VSO로 인계한 Secret은 seed-secrets가 덮어쓰지 않습니다.
 
 ## 장애 대응
 

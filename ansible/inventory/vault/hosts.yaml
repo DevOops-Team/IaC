@@ -1,0 +1,21 @@
+# 기존 Proxmox VM만 구성한다. VM 생성/디스크/네트워크는 Terraform 담당.
+all:
+  children:
+    vault_servers:
+      hosts:
+        vault1:
+          ansible_host: 172.30.0.81
+          ansible_user: vault1
+          physical_host: devoops
+    vault_future:
+      hosts:
+        vault2:
+          ansible_host: 172.30.0.82
+          ansible_user: vault2
+          physical_host: pve2
+        vault3:
+          ansible_host: 172.30.0.83
+          ansible_user: vault3
+          physical_host: pve4
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
