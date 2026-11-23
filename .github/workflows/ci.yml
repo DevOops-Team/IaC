@@ -25,6 +25,7 @@ jobs:
         working-directory: ansible
         run: |
           ansible-playbook -i inventory/vault/hosts.yaml playbooks/vault/configure-vms.yml --syntax-check
+          ansible-playbook -i inventory/onprem/hosts.yaml playbooks/vault/configure-kubernetes-auth.yml --syntax-check
           ansible-playbook -i inventory/onprem/hosts.yaml playbooks/bootstrap/install-vso.yml --syntax-check
           ansible-playbook -i inventory/onprem/hosts.yaml playbooks/bootstrap/seed-secrets.yml --syntax-check
       - name: 실제 role로 VSO Secret 덮어쓰기 방지 시험 (모의 kubectl)

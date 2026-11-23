@@ -1,0 +1,105 @@
+---
+- name: Require reviewed authentication setup and a local public CA file
+  ansible.builtin.assert:
+    that:
+      - vault_auth_configure_confirmed | bool
+      - vault_public_ca_file is match('^/')
+      - vault_external_addr is match('^https://')
+      - vault_manager_api_addr is match('^https://')
+      - vault_kubernetes_mount is match('^[a-z0-9-]+$')
+- name: Validate target identities and KV paths before changing policies
+  ansible.builtin.assert:
+    that:
+      - item.namespace is match('^[a-z0-9-]+$')
+      - item.name is match('^[a-z0-9-]+$')
+      - item.policy is match('^[a-z0-9-]+$')
+      - item.kv_path is match('^onprem/[a-z0-9-]+/[a-z0-9-]+$')
+  loop: '{{ vault_common_targets }}'
+- name: Verify unsealed Vault and TLS trust without using an authentication token
+  ansible.builtin.uri:
+    url: '{{ vault_external_addr }}/v1/sys/health'
+    ca_path: '{{ vault_public_ca_file }}'
+    use_proxy: false
+    status_code: [200, 429]
+  changed_when: false
+  check_mode: false
+- name: Confirm kubeconfig targets the agreed management API
+  ansible.builtin.command:
+    argv: [kubectl, --context, '{{ manager_context }}', config, view, --minify, -o, json]
+  register: vault_manager_config
+  changed_when: false
+  check_mode: false
+- name: Refuse to configure authentication against another cluster
+  ansible.builtin.assert:
+    that:
+      - (vault_manager_config.stdout | from_json).clusters[0].cluster.server == vault_manager_api_addr
+- name: Read only the public Kubernetes API CA
+  ansible.builtin.command:
+    argv: [kubectl, --context, '{{ manager_context }}', -n, default, get, configmap, kube-root-ca.crt, -o, json]
+  register: vault_manager_ca
+  changed_when: false
+  check_mode: false
+- name: Read existing Vault authentication paths using the operator's CLI login
+  ansible.builtin.command:
+    argv: [vault, auth, list, -format=json]
+  register: vault_auth_paths
+  changed_when: false
+  check_mode: false
+- name: Do not replace another authentication method
+  ansible.builtin.assert:
+    that:
+      - >-
+        (vault_auth_paths.stdout | from_json).get(vault_kubernetes_mount ~ '/', {}).get('type', 'kubernetes') == 'kubernetes'
+- name: Create the Kubernetes authentication path only when absent
+  ansible.builtin.command:
+    argv: [vault, auth, enable, '-path={{ vault_kubernetes_mount }}', kubernetes]
+  when:
+    - not ansible_check_mode
+    - (vault_kubernetes_mount ~ '/') not in (vault_auth_paths.stdout | from_json)
+- name: Read current auth configuration without treating denied access as missing
+  ansible.builtin.command:
+    argv: [vault, read, -format=json, 'auth/{{ vault_kubernetes_mount }}/config']
+  register: vault_auth_config
+  changed_when: false
+  check_mode: false
+  failed_when: >-
+    vault_auth_config.rc != 0 and
+    'No value found at' not in (vault_auth_config.stderr ~ vault_auth_config.stdout)
+  when: not ansible_check_mode or (vault_kubernetes_mount ~ '/') in (vault_auth_paths.stdout | from_json)
+- name: Normalize auth comparison fields
+  ansible.builtin.set_fact:
+    vault_auth_current: '{{ (vault_auth_config.stdout | from_json).data if vault_auth_config.rc | default(2) == 0 else {} }}'
+    vault_auth_ca_pem: '{{ (vault_manager_ca.stdout | from_json).data["ca.crt"] | trim }}'
+- name: Detect a changed API, CA, or token reviewer mode
+  ansible.builtin.set_fact:
+    vault_auth_config_matches: >-
+      {{ vault_auth_current.get('kubernetes_host') == vault_manager_api_addr and
+         (vault_auth_current.get('kubernetes_ca_cert', '') | trim) == vault_auth_ca_pem and
+         vault_auth_current.get('disable_local_ca_jwt', false) and
+         not vault_auth_current.get('token_reviewer_jwt_set', false) }}
+- name: Require explicit review before replacing existing auth configuration
+  ansible.builtin.assert:
+    that:
+      - vault_auth_current | length == 0 or vault_auth_config_matches | bool or vault_auth_update_confirmed | bool
+    fail_msg: 기존 API/CA/reviewer 구성이 다릅니다. 확인 후 vault_auth_update_confirmed=true를 지정하세요.
+- name: Configure external Vault client-JWT reviewer mode using public data only
+  ansible.builtin.command:
+    argv: [vault, write, 'auth/{{ vault_kubernetes_mount }}/config', '-']
+    stdin: '{{ {"kubernetes_host": vault_manager_api_addr, "kubernetes_ca_cert": vault_auth_ca_pem, "disable_local_ca_jwt": true, "token_reviewer_jwt": ""} | to_json }}'
+  when: not ansible_check_mode and not (vault_auth_config_matches | bool)
+- name: Configure each service's read-only policy and authentication role
+  ansible.builtin.include_tasks: service-policy.yml
+  loop: '{{ vault_common_targets }}'
+  loop_control:
+    loop_var: vault_target
+    label: '{{ vault_target.namespace }}/{{ vault_target.name }}'
+- name: Install public Vault CA in each destination namespace
+  ansible.builtin.command:
+    argv: [kubectl, --context, '{{ manager_context }}', apply, -f, '-']
+    stdin: >-
+      {{ {"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "vault-vm-ca", "namespace": item},
+          "type": "Opaque", "data": {"ca.crt": lookup('ansible.builtin.file', vault_public_ca_file, rstrip=false) | b64encode}} | to_json }}
+  loop: '{{ vault_common_targets | map(attribute="namespace") | unique | list }}'
+  register: vault_ca_apply
+  changed_when: "'unchanged' not in vault_ca_apply.stdout"
+  when: not ansible_check_mode

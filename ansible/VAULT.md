@@ -3,6 +3,15 @@
 채택 방식은 **외부 Vault VM + Raft + Shamir 수동 unseal + VSO + 정적 KV v2**다.
 서비스 비밀번호를 변경하거나 운영 VM에 적용하는 PR이 아니다. 기존 서비스의 Secret 이름·key·값을 유지한다.
 
+## 진행 상황 — 2026-11-23
+
+- Vault `.81`: 이전 사용자 제공 출력에서 2.2.2·Raft·systemd 기동 확인. 현재 live 상태를 새로 조회하지는 않았다.
+- Backend `platform/backend-db`: 사용자 동기화 성공 보고.
+- Collector `data-system/collector-db`: 사용자 동기화 성공 보고.
+- 두 대상은 기존 이름·key·비밀번호를 유지한 정적 KV 이전이다. DB 계정을 변경한 작업이 아니다.
+- 코드 공통화: VM role·VSO bootstrap·인증/정책/공개 CA role은 IaC, VSO 운영/연결/동기화 리소스는 Gitops.
+- 3노드 가입, 주소 HA, 자동 unseal·외부 백업 운영 검증과 나머지 Secret 이전은 완료로 간주하지 않는다.
+
 ## 역할 분리
 
 | 대상 | 담당 |
@@ -10,6 +19,7 @@
 | Proxmox VM 생성·디스크·고정 IP·초기 SSH | 기존 인프라 담당/Terraform. 이 Ansible은 이미 있는 VM에 접속한다. |
 | Vault 패키지·Raft 설정·TLS·systemd | `playbooks/vault/configure-vms.yml` → `roles/vault-server` |
 | VSO 최초 설치 | 선택 실행 `playbooks/bootstrap/install-vso.yml`. 기본 `site.yml`에 포함하지 않는다. |
+| Vault 공통 Kubernetes 인증·read 정책·role·공개 CA | 선택 실행 `playbooks/vault/configure-kubernetes-auth.yml` → `roles/vault-kubernetes-auth` |
 | VSO 운영 values·VaultConnection·VaultAuth·VaultStaticSecret·인증 SA/RBAC | Gitops 담당. 동일 Helm release를 Ansible과 Argo CD가 동시에 변경하지 않는다. |
 | KV 값·Vault 정책/role·Kubernetes auth·수동 init/unseal·snapshot | 운영자가 Vault CLI로 수행. 토큰·unseal key·비밀번호는 Git/Ansible vars에 저장하지 않는다. |
 
@@ -107,7 +117,8 @@ Argo CD로 인계한 뒤에는 이 bootstrap 플레이북을 운영 upgrade 용�
 
 ### 찬경님 검토/인계 항목
 
-현재 확인한 Gitops main에는 VSO Application/운영 리소스가 없다. 다음을 Gitops에서 선언해야 재구축이 완성된다.
+Gitops `GPU-241-vault-common-manifests` 브랜치에 VSO/공통 인증/두 DB 동기화 매니페스트를 준비했다.
+main 반영·Argo 인계·실제 재구축 검증까지 완료됐다는 뜻은 아니다. 다음을 함께 검토한다.
 
 - VSO namespace·고정 Helm chart·values·Argo Application과 허용 AppProject 범위. 수동 Helm release 인계 방식 결정.
 - namespace별 `VaultConnection`과 공개 CA Secret(`ca.crt`). 자체 서명 인증서도 TLS 검증을 끄지 않는다.
@@ -117,6 +128,39 @@ Argo CD로 인계한 뒤에는 이 bootstrap 플레이북을 운영 upgrade 용�
 - `VaultStaticSecret`: 기존 대상이면 `destination.create: false`, `transformation.excludeRaw: true`.
   초기 이전에는 자동 `rolloutRestartTargets`를 넣지 않는다. 정적 값 교체는 서비스별 재읽기/재시작 계획을 별도 검증한다.
 - 서비스 비밀값·TLS 개인키·Vault 토큰·unseal key는 Gitops에 커밋하지 않는다.
+
+### 공통 인증/정책을 Ansible로 다시 구성
+
+실행기에는 `kubectl`과 `vault` CLI가 필요하다. API/인증서 파일은 공개 자료이고 로그인 토큰은
+로컬 CLI 로그인으로만 제공한다. Vault VM의 관리자 kubeconfig를 복사하는 방식이 아니다.
+
+```bash
+# 개인 실행기에서 공개 Vault 인증서만 준비한다. SSH 비밀키는 복사하지 않는다.
+mkdir -p "$HOME/.devoops/vault"
+scp vault1@172.30.0.81:vault-ca.crt "$HOME/.devoops/vault/vault-ca.crt"
+export VAULT_ADDR=https://172.30.0.81:8200
+export VAULT_CACERT="$HOME/.devoops/vault/vault-ca.crt"
+vault login
+
+# ansible 디렉터리에서 실행. bootstrap.local.yml에는 비밀값을 넣지 않는다.
+ansible-playbook playbooks/vault/configure-kubernetes-auth.yml \
+  -e @bootstrap.local.yml \
+  -e "vault_public_ca_file=$VAULT_CACERT" \
+  -e vault_auth_configure_confirmed=true --check
+
+ansible-playbook playbooks/vault/configure-kubernetes-auth.yml \
+  -e @bootstrap.local.yml \
+  -e "vault_public_ca_file=$VAULT_CACERT" \
+  -e vault_auth_configure_confirmed=true
+```
+
+공통 변수 `vault_common_targets`의 두 항목(Backend·Collector)을 순회한다. 각 서비스의 KV 경로 하나에
+`read`만 허용하고 동기화 전용 SA와 namespace를 role에 묶는다. Vault/실제 Secret의 비밀번호를
+조회·등록·변경하지 않는다. Kubernetes의 `vault-vm-ca`는 공개 CA key만 등록한다.
+API/CA/reviewer 방식이나 기존 role의 인증 주체가 다르면 기본 중단하며, 대조 후에만
+`vault_auth_update_confirmed=true`로 명시적으로 변경한다. 이 role은 Gitops의 VaultAuth/StaticSecret을 적용하지 않는다.
+권한/API 오류를 “설정이 없음”으로 처리하지 않으며 기존 정책·TTL이 같으면 Vault write를 생략한다.
+두 namespace는 기존 클러스터에 먼저 있어야 한다. Vault가 sealed이면 진행하지 않는다.
 
 ## 4. Secret 관리 주체 전환
 
