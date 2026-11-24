@@ -1,7 +1,10 @@
 bootstrap_config_confirmed: false
 # VSO로 관리 주체를 넘긴 Secret은 namespace/name으로 기록한다.
 # 실제 VaultStaticSecret 목적지도 자동 검사한다. 인계 완료한 대상만 추가한다.
-gitops_vso_managed_secrets: []
+# GPU-241: Cloudflare DNS 토큰 SecretSynced·기존 값 유지 확인 보고에 따라 인계 기록.
+# 기존 bootstrap.local.yml을 쓰는 운영자는 기존 목록을 보존하며 이 항목을 추가한다.
+gitops_vso_managed_secrets:
+  - cert-manager/cloudflare-dns-api-token
 manager_context: YOUR_ONPREM_CONTEXT
 # register-monitoring-cluster.yml (GPU-177): 모니터링 클러스터 kubeconfig context
 monitoring_context: YOUR_MONITORING_CONTEXT
