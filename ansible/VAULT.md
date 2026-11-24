@@ -176,6 +176,13 @@ gitops_vso_managed_secrets:
   - cert-manager/cloudflare-dns-api-token
 ```
 
+GPU-241 Cloudflare 수동 Sync 완료 보고(SecretSynced 및 UID/type/key/값 해시 유지)에 따라
+`bootstrap.example.yml`에도 위 항목을 반영했다. 기존 `bootstrap.local.yml`은 Git 제외 파일이므로
+pull만으로 수정되지 않는다. 운영 파일의 기존 인계 목록을 지우지 않고 해당 항목을 추가한다.
+새 환경에서 아직 인계하지 않았다면 목록에서 제외하고 기존 bootstrap 절차로 준비한다.
+이 설정은 토큰을 등록·교체하거나 DNS-01 갱신 시험을 수행하지 않는다. 아직 미인계인 워커
+kubeconfig·GHCR Secret은 실제 인계 확인 전 이 완료 목록에 추가하지 않는다.
+
 기존 Secret의 값을 변경 없이 이전하려면 원본 값 비공개 추출 → 새 KV 경로 CAS=0 등록 → 모든 key/byte 일치 확인 →
 기존 생성 도구 중지/인계 목록 등록 → VSO 연결 → UID/type/data 유지와 실제 동기화 성공 확인 순서로 한다.
 VSO 연결은 읽기 전용 동작이 아니므로 이전 중 비밀번호 교체를 동시에 수행하지 않는다.
