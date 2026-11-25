@@ -6,9 +6,16 @@
 #   - kueue-system/relocator     : relocator 전용 (노드 cordon · taint), relocator.tf
 # 토큰은 만료 없는 service-account-token Secret이다 (ADR-9, exec 인증 쓰지 않음).
 
-# 관리자 Access Entry가 붙기 전에는 API 호출이 403이므로 그 뒤에 만든다.
+# EKS API에 닿는 조건 두 가지가 생긴 뒤에 만들고, destroy 때는 이 둘보다 먼저 지운다.
+#   - 관리자 Access Entry: 붙기 전에는 API 호출이 403
+#   - 온프레 → EKS API 허용 규칙: 없으면 접속 자체가 안 됨. 예전에는 의존이 없어 destroy 때 병렬로 먼저 지워져
+#     EKS 안 리소스 삭제가 전부 실패했다 (GPU-250)
+# EKS 안 리소스는 전부 이것(또는 이것에 의존하는 네임스페이스 · SA)에 의존한다.
 resource "terraform_data" "api_ready" {
-  input = var.admin_access_ready
+  input = {
+    admin_access = var.admin_access_ready
+    api_access   = var.api_access_ready
+  }
 }
 
 # Argo CD(Gitops eks/scheduling/base/namespaces.yaml, monitoring은 Monitoring 레포
