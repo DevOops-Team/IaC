@@ -23,6 +23,14 @@ variable "admin_access_ready" {
   type        = string
 }
 
+variable "api_access_ready" {
+  description = <<-EOT
+    modules/eks의 온프레 → EKS API 허용 규칙 ID (api_access_rule_id). 이 규칙이 없으면 온프레에서 EKS API에 닿지 못한다.
+    api_ready가 이것에 의존해야 destroy 때 EKS 안 리소스가 먼저 지워지고 규칙은 그 뒤에 지워진다 (GPU-250).
+  EOT
+  type        = string
+}
+
 variable "gpu_quota" {
   description = <<-EOT
     이 클러스터의 학습 · 예비 GPU 수 (config eks.topologies의 training · spare, 노드 1 = GPU 1, ADR-4).
