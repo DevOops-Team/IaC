@@ -57,6 +57,13 @@ locals {
       name = "recovery-data-access"
       statements = [
         {
+          # ADR-50 / GPU-272: 복구 컨트롤러가 제출 원본을 읽고 검증해 RR spec에 전달한다.
+          Sid      = "ReadRecoverySubmission"
+          Effect   = "Allow"
+          Action   = "s3:GetObject"
+          Resource = "${local.checkpoint_arn}/code/*"
+        },
+        {
           # Scan: 하트비트 경과 지표가 펜싱 테이블 전체를 읽는다 (ADR-44, GPU-242)
           Sid      = "ManageRecoveryState"
           Effect   = "Allow"
@@ -74,18 +81,7 @@ locals {
     relocator = {
       name = "relocator-data-access"
       statements = [
-        {
-          Sid      = "UpdateRelocationState"
-          Effect   = "Allow"
-          Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
-          Resource = local.fencing_arn
-        },
-        {
-          Sid      = "ReadSubmittedJobSet"
-          Effect   = "Allow"
-          Action   = "s3:GetObject"
-          Resource = "${local.checkpoint_arn}/code/*/jobset.json"
-        },
+        # ADR-50 / GPU-272: RR spec 입력 · status 출력만 사용한다. AWS 데이터 권한은 recovery에 둔다.
         {
           Sid       = "DescribeWorkerInstances"
           Effect    = "Allow"
