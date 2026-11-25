@@ -30,6 +30,15 @@
           data:
             timeout.reconciliation: "{{ argocd_reconciliation_timeout }}"
             timeout.reconciliation.jitter: "{{ argocd_reconciliation_jitter }}"
+      # GPU-273: argocd.devoops.site는 Traefik이 TLS를 끝내고 HTTP로 넘긴다 (Gitops onprem/platform/argocd-ingress).
+      # 켜 두지 않으면 argocd-server가 HTTP 요청을 HTTPS로 되돌려 보내 무한 리다이렉트가 된다
+      - patch: |-
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: argocd-cmd-params-cm
+          data:
+            server.insecure: "{{ argocd_server_insecure | string | lower }}"
 - name: Ensure Argo CD namespace exists for first installation
   ansible.builtin.include_tasks: namespace.yml
   vars:
@@ -50,6 +59,22 @@
     - -o
     - jsonpath={.data.timeout\.reconciliation}/{.data.timeout\.reconciliation\.jitter}
   register: argo_reconciliation_before
+  changed_when: false
+- name: Read the current server.insecure setting
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - -n
+    - argocd
+    - get
+    - configmap
+    - argocd-cmd-params-cm
+    - --ignore-not-found
+    - -o
+    - jsonpath={.data.server\.insecure}
+  register: argo_server_insecure_before
   changed_when: false
 - name: Install Argo CD once using server-side apply
   ansible.builtin.command:
@@ -81,6 +106,22 @@
   when:
   - argo_reconciliation_before.stdout != ''
   - argo_reconciliation_before.stdout != argocd_reconciliation_timeout ~ '/' ~ argocd_reconciliation_jitter
+  changed_when: true
+- name: Restart argocd-server when server.insecure changed
+  # argocd-server는 시작할 때만 argocd-cmd-params-cm을 읽는다. 처음 설치(ConfigMap 없음)는 이미 새 값으로 뜬다
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - --context
+    - '{{ manager_context }}'
+    - -n
+    - argocd
+    - rollout
+    - restart
+    - deployment/argocd-server
+  when:
+  - argo_reconciliation_before.stdout != ''
+  - argo_server_insecure_before.stdout != (argocd_server_insecure | string | lower)
   changed_when: true
 - name: Wait for Argo API server
   ansible.builtin.command:
