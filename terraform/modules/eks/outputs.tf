@@ -60,6 +60,11 @@ output "cluster_certificate_authority_data" {
   value       = aws_eks_cluster.this.certificate_authority[0].data
 }
 
+output "api_access_rule_id" {
+  description = "온프레 → EKS API(443) 허용 규칙 ID. 허브 등록이 이것에 의존해 destroy 때 클러스터 안 리소스보다 늦게 지워진다 (GPU-250)."
+  value       = aws_vpc_security_group_ingress_rule.onprem_api.id
+}
+
 output "admin_access_policy_association_id" {
   description = "관리자 Access Entry 연결 ID. 허브 등록이 이 값이 생긴 뒤에 시작한다."
   value       = aws_eks_access_policy_association.admin.id
