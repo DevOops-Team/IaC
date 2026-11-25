@@ -10,6 +10,7 @@ module "checkpoint" {
   versioning            = local.cfg.storage.checkpoint.versioning
   bucket_owner_enforced = local.cfg.storage.checkpoint.bucket_owner_enforced
   lifecycle_rules       = local.cfg.storage.checkpoint.lifecycle_rules
+  cors_rules            = try(local.cfg.storage.checkpoint.cors_rules, [])
 }
 
 module "monitoring" {
