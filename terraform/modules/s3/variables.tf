@@ -27,3 +27,16 @@ variable "lifecycle_rules" {
   }))
   default = []
 }
+
+variable "cors_rules" {
+  description = "CORS 규칙. 비우면 CORS 설정을 만들지 않는다 (브라우저가 버킷에 직접 접근하지 않음)."
+  type = list(object({
+    id              = optional(string)
+    allowed_origins = list(string)
+    allowed_methods = list(string)
+    allowed_headers = optional(list(string), [])
+    expose_headers  = optional(list(string), [])
+    max_age_seconds = optional(number)
+  }))
+  default = []
+}
