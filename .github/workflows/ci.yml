@@ -56,6 +56,14 @@ jobs:
           php -l scripts/pfsense/vpn-inbound.php
           php -l scripts/pfsense/tests/test-vpn-inbound.php
           php scripts/pfsense/tests/test-vpn-inbound.php
+          php -l scripts/pfsense/vpn-sync.php
+          php scripts/pfsense/tests/test-vpn-sync.php
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: VPN HA 동기화 테스트 (AWS·SSH 접속 없음)
+        # Terraform hook 테스트는 별도 terraform job에서 CLI와 함께 실행한다.
+        run: python -m unittest discover -s scripts/pfsense/tests -p 'test_*.py' -v
 
   terraform:
     runs-on: ubuntu-24.04
@@ -121,6 +129,8 @@ jobs:
         run: terraform fmt -check -recursive terraform
       - name: run.sh validate (no backend, no credentials)
         run: terraform/run.sh validate
+      - name: VPN Terraform hook 계획 테스트 (builtin provider, AWS 접속 없음)
+        run: python3 -m unittest discover -s scripts/pfsense/tests -p 'test_terraform_hook.py' -v
 
   python-tests:
     runs-on: ubuntu-24.04

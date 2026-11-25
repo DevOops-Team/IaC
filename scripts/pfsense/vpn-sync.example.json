@@ -1,0 +1,11 @@
+{
+  "ssh_config": "~/.ssh/devoops.conf",
+  "jump_host": "pve4",
+  "identity_file": "~/.ssh/id_ed25519_devoops",
+  "carp_vip": "_vip6af166d2ed2e0",
+  "firewalls": [
+    {"host": "172.30.0.2", "fingerprint": "REPLACE_WITH_CONSOLE_VERIFIED_SHA256_FINGERPRINT"},
+    {"host": "172.30.0.3", "fingerprint": "REPLACE_WITH_CONSOLE_VERIFIED_SHA256_FINGERPRINT"}
+  ],
+  "timeout_seconds": 240
+}

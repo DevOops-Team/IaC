@@ -15,3 +15,9 @@ output "private_subnet_ids" {
 output "vpn_connection_id" {
   value = aws_vpn_connection.this.id
 }
+
+output "vpn_sync_revision" {
+  description = "VPN의 터널 구성 변경 감지용 해시. PSK 원문은 외부 실행기로 넘기지 않는다."
+  value       = sha256(aws_vpn_connection.this.customer_gateway_configuration)
+  sensitive   = true
+}
