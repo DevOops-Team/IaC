@@ -3,3 +3,6 @@ argocd_cache: '{{ role_path }}/../../.cache/argocd'
 # 바뀌면 repo-server · application-controller를 재시작해야 적용된다 (argocd-cm.yaml 문서).
 argocd_reconciliation_timeout: 60s
 argocd_reconciliation_jitter: 0s
+# argocd-server를 TLS 없이(HTTP) 띄운다 (GPU-273). 공인 진입 argocd.devoops.site는 Traefik이 TLS를 끝낸다.
+# 바뀌면 argocd-server를 재시작해야 적용된다. port-forward로 볼 때는 http://localhost:8080
+argocd_server_insecure: true
