@@ -21,6 +21,16 @@ storage:
       - id: database-backups-expired-delete-markers
         prefix: backups/db/
         expired_object_delete_marker: true
+    # 학습 제출 업로드: 브라우저가 Backend presigned URL로 datasets/<id>/v1/에 직접 PUT (GPU-278).
+    # Cloudflare 프록시 요청 제한(100MB)을 피한다. 객체 접근 권한은 서명(Backend 역할)이 정하고 CORS는 출처만 연다.
+    # x-amz-checksum-sha256: 서명에 넣은 sha256으로 S3가 내용을 검증. localhost는 Frontend 로컬 개발(vite)
+    cors_rules:
+      - id: submission-upload
+        allowed_origins: ["https://devoops.site", "http://localhost:5173"]
+        allowed_methods: ["PUT"]
+        allowed_headers: ["content-type", "x-amz-checksum-sha256"]
+        expose_headers: ["ETag"]
+        max_age_seconds: 3600
   # Mimir · Loki · Tempo 장기 저장. 보존은 각 앱이 관리한다 (일괄 만료 규칙 넣지 않음)
   monitoring:
     suffix: monitoring
