@@ -7,6 +7,7 @@ output "network" {
     private_subnet_ids = module.vpc[0].private_subnet_ids
     vpn_connection_id  = module.vpc[0].vpn_connection_id
   } : null
+  depends_on = [terraform_data.vpn_sync]
 }
 
 output "checkpoint_bucket" {

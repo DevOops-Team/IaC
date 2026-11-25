@@ -2,6 +2,8 @@
 
 이 저장소는 AWS Terraform과 온프레미스 Ansible/Kubespray 설정을 관리합니다.
 
+AWS VPN 재생성 뒤 양쪽 pfSense의 터널·BGP 반영은 base apply에 연결돼 있습니다. 최초 실행 전에 [VPN HA 동기화](terraform/docs/VPN-HA-SYNC.md)의 로컬 SSH 설정을 준비하세요.
+
 ```text
 gpu-iac/
 ├─ bootstrap/
