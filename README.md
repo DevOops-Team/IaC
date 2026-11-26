@@ -55,11 +55,12 @@ aws sso login --profile devoops
 bootstrap/certs.sh --status                     # 인증서 만료일
 terraform/run.sh plan                           # 전체 plan
 terraform/run.sh apply eks --proxy              # EKS 켜기 (base 뒤)
-terraform/run.sh destroy                        # EKS 끄기
+terraform/run.sh destroy                        # EKS 끄기 (지우기 전에 펜싱)
 terraform/run.sh output base -- workloads       # signing helper용 ARN
 ```
 
 - `apply` · `destroy`는 대상 계정 ID를 입력해야 진행합니다 (`-y`로 생략).
+- `destroy`는 EKS를 지우기 전에 K8s 레포 `scheduling/ops/eks_gate.py fence`로 클러스터마다 펜싱하고 남은 잡을 확인합니다. 워커가 살아 있을 때 펜싱해야 다시 `apply eks`했을 때 디스패처가 펜싱을 스스로 풉니다. 남은 잡이 있거나 펜싱에 실패하면 지우지 않고 멈춥니다. K8s 레포 경로는 `K8S_REPO`(기본: 이 레포 옆 `K8s`), 파이썬은 `PYTHON`(kubernetes 패키지 필요)으로 정하고, 온프레 kubeconfig의 current-context가 관리 클러스터여야 합니다. 온프레에 닿지 않을 때만 `--skip-fence`로 건너뛰며, 그러면 켠 뒤 `eks_gate.py on-check <eks-x> --unfence`로 직접 풀어야 합니다.
 - 새 작업은 `develop`에서 `GPU-n-설명` 브랜치 → `develop` → `main` PR (ADR-20).
 
 ## EKS GPU 관리형 노드 그룹
