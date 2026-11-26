@@ -37,18 +37,22 @@ locals {
           Condition = { StringLike = { "s3:prefix" = ["code/*", "datasets/*", "jobs/*"] } }
         },
         {
-          # 파일 목록: code/<id>/ 아래만 나열 (Backend Files). 다른 접두어(jobs/ · backups/)는 못 본다
+          # 파일 목록: code/<id>/ 아래만 나열 (Backend Files). 다른 접두어(jobs/ · backups/)는 못 본다.
+          # datasets/*: 브라우저 직접 업로드 확인(GPU-278). ListBucket이 없으면 없는 키의 HeadObject가 404가 아니라 403이라
+          # "아직 올라가지 않음"과 권한 오류를 가를 수 없다
           Sid       = "ListSubmission"
           Effect    = "Allow"
           Action    = "s3:ListBucket"
           Resource  = local.checkpoint_arn
-          Condition = { StringLike = { "s3:prefix" = ["code/*"] } }
+          Condition = { StringLike = { "s3:prefix" = ["code/*", "datasets/*"] } }
         },
         {
-          # 첫 항목 생성(PutItem) + 사용자 다시 시작의 세대 +1 조건부 갱신(UpdateItem, GPU-240)
-          Sid      = "CreateAndReadInitialFencing"
+          # 첫 항목 생성(PutItem) + 사용자 다시 시작의 세대 +1 조건부 갱신(UpdateItem, GPU-240).
+          # Backend는 항목을 따로 읽지 않는다(GetItem 없음, GPU-290). 조건 실패 시 현재 값은
+          # UpdateItem의 ReturnValuesOnConditionCheckFailure=ALL_OLD로 받는다
+          Sid      = "CreateAndRestartFencing"
           Effect   = "Allow"
-          Action   = ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem"]
+          Action   = ["dynamodb:PutItem", "dynamodb:UpdateItem"]
           Resource = local.fencing_arn
         },
       ]

@@ -21,6 +21,11 @@ storage:
       - id: database-backups-expired-delete-markers
         prefix: backups/db/
         expired_object_delete_marker: true
+      # 브라우저 직접 업로드(GPU-278)의 끝나지 않은 multipart 조각: 목록에 안 보이고 요금은 나간다.
+      # 업로드 URL은 1시간이면 만료되므로 하루 지난 미완료 업로드는 버린다
+      - id: abort-incomplete-dataset-uploads
+        prefix: datasets/
+        abort_incomplete_multipart_days: 1
     # 학습 제출 업로드: 브라우저가 Backend presigned URL로 datasets/<id>/v1/에 직접 PUT (GPU-278).
     # Cloudflare 프록시 요청 제한(100MB)을 피한다. 객체 접근 권한은 서명(Backend 역할)이 정하고 CORS는 출처만 연다.
     # x-amz-checksum-sha256: 서명에 넣은 sha256으로 S3가 내용을 검증. localhost는 Frontend 로컬 개발(vite)
