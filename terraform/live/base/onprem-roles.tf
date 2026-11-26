@@ -47,10 +47,12 @@ locals {
           Condition = { StringLike = { "s3:prefix" = ["code/*", "datasets/*"] } }
         },
         {
-          # 첫 항목 생성(PutItem) + 사용자 다시 시작의 세대 +1 조건부 갱신(UpdateItem, GPU-240)
-          Sid      = "CreateAndReadInitialFencing"
+          # 첫 항목 생성(PutItem) + 사용자 다시 시작의 세대 +1 조건부 갱신(UpdateItem, GPU-240).
+          # Backend는 항목을 따로 읽지 않는다(GetItem 없음, GPU-290). 조건 실패 시 현재 값은
+          # UpdateItem의 ReturnValuesOnConditionCheckFailure=ALL_OLD로 받는다
+          Sid      = "CreateAndRestartFencing"
           Effect   = "Allow"
-          Action   = ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem"]
+          Action   = ["dynamodb:PutItem", "dynamodb:UpdateItem"]
           Resource = local.fencing_arn
         },
       ]

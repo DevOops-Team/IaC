@@ -98,7 +98,7 @@ only into their own workload, read-only and with limited Secret/RBAC access.
 
 | Workload | Reported namespace | IAM role suffix | Current permission scope |
 | --- | --- | --- | --- |
-| Backend | web | onprem-backend | S3 code/datasets uploads; fencing PutItem/GetItem |
+| Backend | web | onprem-backend | S3 code/datasets uploads; fencing PutItem/UpdateItem |
 | Recovery controller | recovery | onprem-recovery | fencing GetItem/UpdateItem |
 | Relocation executor | scheduler | onprem-relocator | fencing GetItem/UpdateItem; S3 code/*/jobset.json read; DescribeCluster eks-a/b/c |
 | MultiKueue | kueue-system | onprem-multikueue | DescribeCluster eks-a/b/c |
