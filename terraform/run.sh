@@ -7,7 +7,10 @@
 #   base        terraform/live/base   S3 · DynamoDB · Roles Anywhere · VPC(network)      ← CA 공개 인증서, 온프레 공인 IP
 #   eks         terraform/live/eks    EKS 클러스터 · GPU 노드그룹 · 온프레 허브 등록        ← base, 온프레 kubeconfig, SOCKS 프록시
 #
-# EKS ON 마지막 단계: apply eks 뒤 OFF 때 붙인 펜싱 라벨(devoops/fenced)이 남아 있으면 안내가 나온다.
+# EKS OFF 첫 단계: destroy eks는 지우기 전에 K8s 레포 scheduling/ops/eks_gate.py fence <eks-x>로 펜싱한다.
+#   워커가 살아 있을 때 펜싱해야 디스패처가 워커 식별값을 남기고, 다시 apply하면 라벨을 스스로 푼다.
+#   남은 잡이 있거나 펜싱에 실패하면 destroy를 멈춘다 (--skip-fence로 건너뜀, 그러면 자동 해제가 안 된다).
+# EKS ON 마지막 단계: apply eks 뒤 펜싱 라벨(devoops/fenced)이 남아 있으면 안내가 나온다.
 #   K8s 레포 scheduling/ops/eks_gate.py on-check <eks-x> --unfence 로 확인 뒤 지운다 (지우기 전엔 잡이 안 감)
 #
 # 사람이 고치는 값은 terraform/config/<env>.yaml 한 곳이다. 계정 · 프로파일은 코드에 없다:
@@ -27,12 +30,15 @@
 #   --proxy                eks용 SOCKS 터널(ssh -D 1080 k8s-master1)을 열고 HTTPS_PROXY를 건다
 #   --profile NAME         AWS 프로파일 (기본 devoops. 셸의 AWS_PROFILE은 무시한다)
 #   -y, --yes              계정 확인과 Terraform 승인을 건너뛴다 (-auto-approve)
+#   --skip-fence           destroy eks 전 펜싱을 건너뛴다 (온프레에 못 닿을 때만. ON 때 수동 해제 필요)
 #   --                     뒤의 인자는 terraform 명령에 그대로 넘긴다
 #
 # 환경 변수 (기본값):
 #   ENVIRONMENT=prod                              (config/<ENVIRONMENT>.yaml)
 #   CA_CERT=~/.devoops/rolesanywhere/<env>/ca.pem  (base의 Roles Anywhere CA 공개 인증서)
-#   ONPREM_KUBECONFIG=~/.kube/devoops-onprem.yaml   (eks 허브 등록)
+#   ONPREM_KUBECONFIG=~/.kube/devoops-onprem.yaml   (eks 허브 등록, destroy 전 펜싱. current-context가 관리 클러스터)
+#   K8S_REPO=<이 레포 옆>/K8s                        (destroy 전 펜싱에 쓰는 eks_gate.py가 있는 K8s 레포)
+#   PYTHON=python3                                 (kubernetes 패키지가 설치된 파이썬)
 #   TF_PLUGIN_CACHE_DIR=~/.terraform.d/plugin-cache (provider 공유 캐시)
 #   TF_VAR_*                                       (그 밖의 변수)
 #   <root>/terraform.local.tfvars가 있으면 자동으로 -var-file로 넘긴다 (Git 제외, 예: customer_gateway_ip).
@@ -47,13 +53,15 @@ CONFIG="$TF_DIR/config/$ENVIRONMENT.yaml"
 PROFILE="devoops"   # 팀 공통 프로파일 이름. 셸의 AWS_PROFILE은 쓰지 않는다 (--profile로만 바꾼다)
 CA_CERT="${CA_CERT:-$HOME/.devoops/rolesanywhere/$ENVIRONMENT/ca.pem}"
 ONPREM_KUBECONFIG="${ONPREM_KUBECONFIG:-$HOME/.kube/devoops-onprem.yaml}"
+K8S_REPO="${K8S_REPO:-$TF_DIR/../../K8s}"
+PYTHON="${PYTHON:-python3}"
 export TF_IN_AUTOMATION=1 TF_VAR_environment="$ENVIRONMENT"
 # provider를 root마다 받지 않고 한 곳에 받아 링크로 쓴다 (aws provider 하나가 약 700MB)
 export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
 mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
 die() { echo "error: $*" >&2; exit 1; }
-usage() { sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,44p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 in_list() { local x="$1"; shift; for y in "$@"; do [ "$x" = "$y" ] && return 0; done; return 1; }
 stack_dir() { case "$1" in state) echo state ;; *) echo "live/$1" ;; esac; }
 # state 키 이름. state root는 처음 이름(bootstrap)을 유지한다 (state/main.tf root_names와 같아야 함).
@@ -68,7 +76,7 @@ network_enabled() { awk '/^network:/{n=1;next} n && /^[^ #]/{n=0} n && $1=="enab
 CMD="$1"; shift
 case "$CMD" in init|plan|apply|destroy|validate|output) ;; -h|--help|help) usage 0 ;; *) die "알 수 없는 명령: $CMD (init|plan|apply|destroy|validate|output)" ;; esac
 
-STACKS=() TOPOLOGY="" PROXY=0 YES=0 EXTRA=()
+STACKS=() TOPOLOGY="" PROXY=0 YES=0 SKIP_FENCE=0 EXTRA=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --topology) TOPOLOGY="${2:-}"; shift 2 ;;
@@ -77,6 +85,7 @@ while [ $# -gt 0 ]; do
     --profile) PROFILE="${2:-}"; shift 2 ;;
     --profile=*) PROFILE="${1#*=}"; shift ;;
     -y|--yes) YES=1; shift ;;
+    --skip-fence) SKIP_FENCE=1; shift ;;
     --) shift; EXTRA=("$@"); break ;;
     -*) die "알 수 없는 옵션: $1" ;;
     *) in_list "$1" $ORDER || die "알 수 없는 stack: $1 ($ORDER)"; STACKS+=("$1"); shift ;;
@@ -206,13 +215,54 @@ bootstrap_state_bucket() {
   echo "-- state: 버킷 생성 · state 이전 완료"
 }
 
+eks_aliases() { tf eks output -json cluster_names 2>/dev/null | grep -oE '"[a-z0-9-]+" *:' | tr -d '": ' || true; }
+
+# eks destroy 전: 워커가 아직 살아 있을 때 eks_gate fence로 펜싱한다 (GPU-277).
+# fence는 라벨과 devoops/fenced-by=eks-off 표시를 붙이고 디스패처 ACK를 기다린다. 그 루프에서 디스패처가 지금 워커
+# 식별값(devoops/fenced-worker-id)을 남기므로, 다시 apply하면 디스패처가 라벨을 스스로 푼다. EKS를 지운 뒤에
+# 펜싱하면 식별값을 남길 수 없어 자동 해제가 되지 않는다. 그래서 펜싱 · OFF 확인이 실패하면 destroy를 멈춘다.
+# 펜싱 로직(표시 · resourceVersion · ACK · 남은 잡 확인)은 eks_gate.py 하나에만 둔다.
+eks_fence_before_destroy() {
+  local aliases a gate ctx rc failed=()
+  if [ "$SKIP_FENCE" -eq 1 ]; then
+    echo "   주의: --skip-fence: 펜싱 없이 지웁니다. ON 뒤 자동 해제가 안 되고, 라벨이 없으면 지우는 동안 잡이 갈 수 있습니다"
+    return 0
+  fi
+  aliases="$(eks_aliases)"
+  if [ -z "$aliases" ]; then
+    echo "   (펜싱 건너뜀: eks output cluster_names 없음. 이미 지워졌거나 apply 전)"
+    return 0
+  fi
+  gate="$K8S_REPO/scheduling/ops/eks_gate.py"
+  local skip="펜싱 없이 지우려면 --skip-fence"
+  [ -f "$gate" ] || die "eks_gate.py가 없습니다: ${gate} (K8S_REPO로 K8s 레포 경로 지정, ${skip})"
+  # 표시를 안 붙이는 옛 fence는 라벨만 남겨 자동 해제가 안 된다 (2026-11-26 재발). K8s main v2.6.0 이상이 필요하다
+  grep -q 'mark_eks_off' "$gate" \
+    || die "eks_gate.py가 옛 버전입니다 (eks-off 표시 없음): ${gate}. K8s 레포를 main v2.6.0 이상으로 받은 뒤 다시 실행 (${skip})"
+  command -v kubectl >/dev/null || die "kubectl이 없습니다 (${skip})"
+  "$PYTHON" -c 'import kubernetes' 2>/dev/null || die "${PYTHON}에 kubernetes 패키지가 없습니다 (PYTHON으로 지정, ${skip})"
+  ctx="$(kubectl --kubeconfig "$ONPREM_KUBECONFIG" config current-context 2>/dev/null)" \
+    || die "온프레 kubeconfig에 current-context가 없습니다: ${ONPREM_KUBECONFIG} (${skip})"
+  echo "-- 펜싱: destroy 전에 eks_gate fence (관리 context ${ctx})"
+  for a in $aliases; do
+    echo "   == eks-${a}"
+    rc=0
+    # 온프레 API는 SOCKS 프록시 없이 닿는다 (eks_fence_notice와 같음)
+    env -u HTTPS_PROXY KUBECONFIG="$ONPREM_KUBECONFIG" "$PYTHON" "$gate" --manager-context "$ctx" fence "eks-$a" || rc=$?
+    [ "$rc" -eq 0 ] || failed+=("eks-${a}(종료 코드 ${rc})")
+  done
+  [ ${#failed[@]} -eq 0 ] || die "펜싱 · OFF 확인 실패: ${failed[*]}. 붙인 라벨은 남아 있습니다.
+   남은 잡 · 처리 중 RR을 정리한 뒤 다시 실행합니다 (종료 코드 1: 남은 잡, 2: 접속 오류 · 디스패처 ACK 없음).
+   OFF를 취소하려면 kubectl --kubeconfig ${ONPREM_KUBECONFIG} label multikueuecluster <eks-x> devoops/fenced- (${skip})"
+}
+
 # eks apply 뒤: OFF 때 붙인 펜싱 라벨(devoops/fenced=true)이 남은 MultiKueueCluster를 알린다 (GPU-238).
 # 라벨이 남아 있으면 디스패처가 그 클러스터로 잡을 보내지 않는다. 준비 확인 게이트를 건너뛰지 않도록
 # 여기서 지우지 않고 eks_gate on-check --unfence를 안내한다. 조회 실패는 경고만 하고 apply 결과는 그대로 둔다.
 eks_fence_notice() {
   local aliases fenced=() a label
   command -v kubectl >/dev/null || { echo "   (펜싱 확인 건너뜀: kubectl 없음)"; return 0; }
-  aliases="$(tf eks output -json cluster_names 2>/dev/null | grep -oE '"[a-z0-9-]+" *:' | tr -d '": ')" || true
+  aliases="$(eks_aliases)"
   [ -n "$aliases" ] || return 0
   for a in $aliases; do
     if ! label="$(kubectl --kubeconfig "$ONPREM_KUBECONFIG" --request-timeout=15s get multikueuecluster "eks-$a" \
@@ -246,6 +296,7 @@ for s in "${selected[@]}"; do
   [ "$CMD" = init ] && { echo "   init 완료"; continue; }
   ARGS=(); [ "$CMD" = output ] || stack_args "$s"
   approve=(); { [ "$CMD" = apply ] || [ "$CMD" = destroy ]; } && [ "$YES" -eq 1 ] && approve=(-auto-approve)
+  if [ "$s" = eks ] && [ "$CMD" = destroy ]; then eks_fence_before_destroy; fi
   case "$CMD" in
     output) tf "$s" output "${EXTRA[@]+"${EXTRA[@]}"}" ;;
     *) tf "$s" "$CMD" -input=false "${ARGS[@]+"${ARGS[@]}"}" "${approve[@]+"${approve[@]}"}" "${EXTRA[@]+"${EXTRA[@]}"}" ;;

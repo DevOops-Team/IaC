@@ -38,7 +38,7 @@ terraform/run.sh plan                          # state → base → eks
 terraform/run.sh apply base                    # S3 · DynamoDB · Roles Anywhere · VPC
 terraform/run.sh apply eks --proxy             # EKS (base 뒤, SOCKS 프록시 · 온프레 kubeconfig 필요)
 terraform/run.sh apply eks --topology full --proxy
-terraform/run.sh destroy                       # eks만 지운다
+terraform/run.sh destroy                       # eks만 지운다 (지우기 전에 eks_gate fence로 펜싱)
 terraform/run.sh output base -- workloads      # signing helper용 ARN
 terraform/run.sh validate                      # 자격 증명 없이 문법 (CI와 같음)
 ```
@@ -49,6 +49,7 @@ terraform/run.sh validate                      # 자격 증명 없이 문법 (CI
 | 온프레 공인 IP (base, network.enabled) | `live/base/terraform.local.tfvars`의 `customer_gateway_ip` (Git 제외) |
 | 온프레 kubeconfig (eks) | `~/.kube/devoops-onprem.yaml` 또는 `ONPREM_KUBECONFIG=` |
 | SOCKS 프록시 (eks) | `--proxy` (ssh -D 1080 k8s-master1) |
+| destroy 전 펜싱 (eks) | K8s 레포 `scheduling/ops/eks_gate.py` (`K8S_REPO=`, 기본은 이 레포 옆 `K8s`), kubernetes 패키지가 있는 `PYTHON=`, 온프레 kubeconfig current-context = 관리 클러스터. 못 쓸 때만 `--skip-fence` |
 
 복구 컨트롤러 전용 DynamoDB 테이블은 base에서 기존 펜싱 테이블과 별도로 관리한다.
 `terraform/run.sh plan base`로 변경을 검토한 다음 `terraform/run.sh apply base`로 생성한다.
